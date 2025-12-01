@@ -71,8 +71,10 @@ function getAvailableSlots() {
     if (status === 'LIVRE') {
       const rowIndex = index + 2;
 
+      const dataObj = new Date(dataCell);
+
       const dataStr = Utilities.formatDate(
-        new Date(dataCell),
+        dataObj,
         'America/Sao_Paulo',
         'dd/MM/yyyy'
       );
@@ -83,10 +85,22 @@ function getAvailableSlots() {
         'HH:mm'
       );
 
+      const diasSemana = [
+        'Domingo',
+        'Segunda-feira',
+        'Terça-feira',
+        'Quarta-feira',
+        'Quinta-feira',
+        'Sexta-feira',
+        'Sábado'
+      ];
+      const diaSemana = diasSemana[dataObj.getDay()];
+
       slots.push({
         rowIndex: rowIndex,
         data: dataStr,
-        hora: horaStr
+        hora: horaStr,
+        diaSemana: diaSemana
       });
     }
   });
