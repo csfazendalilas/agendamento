@@ -232,89 +232,91 @@
     }
 
     async function enviarAgendamento() {
-      const select = document.getElementById('slotSelect');
-      const idx = select.value;
-      const slot = slotsGlobais[idx];
+  const select = document.getElementById('slotSelect');
+  const idx = select.value;
+  const slot = slotsGlobais[idx];
 
-      const nome = document.getElementById('nome').value.trim();
-      const telefone = document.getElementById('telefone').value.trim();
-      const observacoes = document.getElementById('observacoes').value.trim();
-      const msgDiv = document.getElementById('mensagem');
-      const waDiv = document.getElementById('whatsapp-container');
-      const waLink = document.getElementById('whatsapp-link');
+  const nome = document.getElementById('nome').value.trim();
+  const telefone = document.getElementById('telefone').value.trim();
+  const observacoes = document.getElementById('observacoes').value.trim();
+  const msgDiv = document.getElementById('mensagem');
+  const waDiv = document.getElementById('whatsapp-container');
+  const waLink = document.getElementById('whatsapp-link');
 
-      waDiv.style.display = 'none';
+  waDiv.style.display = 'none';
 
-      if (!slot) {
-        msgDiv.className = 'msg erro';
-        msgDiv.style.display = 'block';
-        msgDiv.innerText = 'Por favor, escolha um horário válido.';
-        return;
-      }
+  if (!slot) {
+    msgDiv.className = 'msg erro';
+    msgDiv.style.display = 'block';
+    msgDiv.innerText = 'Por favor, escolha um horário válido.';
+    return;
+  }
 
-      if (!nome || !telefone) {
-        msgDiv.className = 'msg erro';
-        msgDiv.style.display = 'block';
-        msgDiv.innerText = 'Preencha nome e telefone.';
-        return;
-      }
+  if (!nome || !telefone) {
+    msgDiv.className = 'msg erro';
+    msgDiv.style.display = 'block';
+    msgDiv.innerText = 'Preencha nome e telefone.';
+    return;
+  }
 
-      msgDiv.className = 'msg';
-      msgDiv.style.display = 'block';
-      msgDiv.innerText = 'Enviando agendamento...';
+  msgDiv.className = 'msg';
+  msgDiv.style.display = 'block';
+  msgDiv.innerText = 'Enviando agendamento...';
 
-      const dados = {
-        rowIndex: slot.rowIndex,
-        nome: nome,
-        telefone: telefone,
-        observacoes: observacoes
-      };
+  const dados = {
+    rowIndex: slot.rowIndex,
+    nome: nome,
+    telefone: telefone,
+    observacoes: observacoes
+  };
 
-      console.log('Enviando para API:', dados);
+  console.log('Enviando para API:', dados);
 
-      try {
-        const resp = await fetch(API_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(dados)
-        });
+  try {
+    const resp = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        // IMPORTANTE: text/plain para evitar preflight CORS
+        'Content-Type': 'text/plain;charset=utf-8'
+      },
+      body: JSON.stringify(dados)
+    });
 
-        if (!resp.ok) {
-          throw new Error('Erro ao agendar (HTTP ' + resp.status + ')');
-        }
-
-        const res = await resp.json();
-        console.log('Resposta da API:', res);
-
-        const mensagem = (res && res.mensagem)
-          ? res.mensagem
-          : 'Agendamento realizado com sucesso!';
-
-        msgDiv.className = 'msg sucesso';
-        msgDiv.style.display = 'block';
-        msgDiv.innerText = mensagem;
-
-        const texto =
-          'Olá! Aqui é ' + nome +
-          '. Acabei de agendar uma consulta para ' + slot.data +
-          ' às ' + slot.hora +
-          '. Poderia confirmar, por favor?';
-
-        const url = 'https://wa.me/' + WHATSAPP_DESTINO + '?text=' + encodeURIComponent(texto);
-        waLink.href = url;
-        waDiv.style.display = 'block';
-
-        // Recarrega horários (aquele vira OCUPADO)
-        carregarHorarios();
-      } catch (err) {
-        console.error(err);
-        msgDiv.className = 'msg erro';
-        msgDiv.style.display = 'block';
-        msgDiv.innerText = err.message || 'Erro ao realizar agendamento. Tente novamente.';
-      }
+    if (!resp.ok) {
+      throw new Error('Erro ao agendar (HTTP ' + resp.status + ')');
     }
+
+    const res = await resp.json();
+    console.log('Resposta da API:', res);
+
+    const mensagem = (res && res.mensagem)
+      ? res.mensagem
+      : 'Agendamento realizado com sucesso!';
+
+    msgDiv.className = 'msg sucesso';
+    msgDiv.style.display = 'block';
+    msgDiv.innerText = mensagem;
+
+    const texto =
+      'Olá! Aqui é ' + nome +
+      '. Acabei de agendar uma consulta para ' + slot.data +
+      ' às ' + slot.hora +
+      '. Poderia confirmar, por favor?';
+
+    const url = 'https://wa.me/' + WHATSAPP_DESTINO + '?text=' + encodeURIComponent(texto);
+    waLink.href = url;
+    waDiv.style.display = 'block';
+
+    // Recarrega horários (aquele vira OCUPADO)
+    carregarHorarios();
+  } catch (err) {
+    console.error(err);
+    msgDiv.className = 'msg erro';
+    msgDiv.style.display = 'block';
+    msgDiv.innerText = err.message || 'Erro ao realizar agendamento. Tente novamente.';
+  }
+}
+
 
     document.addEventListener('DOMContentLoaded', carregarHorarios);
   </script>
