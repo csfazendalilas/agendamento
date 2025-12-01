@@ -221,6 +221,35 @@
       padding: 24px 0;
     }
 
+    /* Loading / spinners */
+    .loading-row {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .spinner {
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      border: 2px solid rgba(148, 163, 184, 0.4);
+      border-top-color: #2563eb;
+      animation: spin 0.7s linear infinite;
+    }
+
+    .spinner.spinner-sm {
+      width: 18px;
+      height: 18px;
+      border-width: 2px;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
     @media (min-width: 600px) {
       .container {
         padding-top: 32px;
@@ -283,7 +312,7 @@
       const formContainer = document.getElementById('form-container');
       const select = document.getElementById('slotSelect');
 
-      loading.innerText = 'Carregando horários disponíveis...';
+      loading.innerHTML = '<div class="loading-row"><div class="spinner"></div><span>Carregando horários disponíveis...</span></div>';
       formContainer.style.display = 'none';
 
       try {
@@ -358,7 +387,12 @@
   // Estado de "loading" enquanto envia para a API
   msgDiv.className = 'msg';
   msgDiv.style.display = 'block';
-  msgDiv.innerHTML = '<p><strong>Enviando agendamento...</strong><br><span>Aguarde alguns instantes.</span></p>';
+  msgDiv.innerHTML =
+    '<div class="loading-row">' +
+    '<div class="spinner spinner-sm"></div>' +
+    '<div><strong>Enviando agendamento...</strong><br>' +
+    '<span>Aguarde alguns instantes.</span></div>' +
+    '</div>';
 
   const dados = {
     rowIndex: slot.rowIndex,
