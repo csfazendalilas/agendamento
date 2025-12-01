@@ -135,14 +135,28 @@ function bookSlot(bookingData) {
   const data = row[0];
   const hora = row[1];
 
+  // Formata a hora para HH:mm (sem segundos)
+  const horaFormatada = Utilities.formatDate(
+    new Date(hora),
+    'America/Sao_Paulo',
+    'HH:mm'
+  );
+
+  // Formata a data para dd/MM/yyyy
+  const dataFormatada = Utilities.formatDate(
+    new Date(data),
+    'America/Sao_Paulo',
+    'dd/MM/yyyy'
+  );
+
   // Registra o agendamento
   sheetAg.appendRow([
     new Date(), // Timestamp
-    data,
-    hora,
+    dataFormatada,
+    horaFormatada,
     nome,
-    telefone,
     dataNascimento,
+    telefone,
     observacoes
   ]);
 
