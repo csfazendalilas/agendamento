@@ -119,6 +119,7 @@ function bookSlot(bookingData) {
   const rowIndex = bookingData.rowIndex;
   const nome = bookingData.nome;
   const telefone = bookingData.telefone;
+  const dataNascimento = bookingData.dataNascimento || '';
   const observacoes = bookingData.observacoes || '';
 
   const row = sheetHor.getRange(rowIndex, 1, 1, 3).getValues()[0];
@@ -141,6 +142,7 @@ function bookSlot(bookingData) {
     hora,
     nome,
     telefone,
+    dataNascimento,
     observacoes
   ]);
 

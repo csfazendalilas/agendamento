@@ -7,76 +7,112 @@
 
   <style>
     /* Layout geral */
+    * {
+      box-sizing: border-box;
+    }
+
     body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       margin: 0;
       padding: 0;
-      background: #f3f4f6;
+      background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
 
     .container {
-      max-width: 480px;
+      max-width: 520px;
       margin: 0 auto;
-      padding: 16px;
+      padding: 24px 16px;
     }
 
     .card {
       background: #ffffff;
-      border-radius: 18px;
-      box-shadow: 0 18px 35px rgba(15, 23, 42, 0.12);
-      padding: 24px 20px 20px;
-      border: 1px solid rgba(148, 163, 184, 0.25);
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.04);
+      padding: 32px 28px;
+      border: none;
+      transition: box-shadow 0.3s ease;
+    }
+
+    .card:hover {
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.06);
     }
 
     h1 {
-      font-size: 1.4rem;
+      font-size: 1.75rem;
+      font-weight: 700;
       text-align: center;
-      margin: 0 0 10px 0;
-      color: #111827;
+      margin: 0 0 8px 0;
+      color: #0f172a;
+      letter-spacing: -0.02em;
     }
 
     p.subtitulo {
-      font-size: 0.95rem;
+      font-size: 0.9375rem;
       text-align: center;
-      margin: 4px 0 18px 0;
-      color: #6b7280;
+      margin: 0 0 32px 0;
+      color: #64748b;
+      line-height: 1.5;
+      font-weight: 400;
     }
 
     /* Formulário */
     label {
       display: block;
-      margin-top: 12px;
-      margin-bottom: 4px;
-      font-size: 0.85rem;
-      color: #374151;
+      margin-top: 20px;
+      margin-bottom: 6px;
+      font-size: 0.875rem;
+      color: #1e293b;
       font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    label:first-of-type {
+      margin-top: 0;
     }
 
     select,
     input,
     textarea {
       width: 100%;
-      padding: 10px 12px;
+      padding: 12px 16px;
       box-sizing: border-box;
-      border-radius: 8px;
-      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      border: 1.5px solid #e2e8f0;
       font-size: 16px; /* evita zoom no iOS */
       outline: none;
-      transition: border-color 0.15s ease, box-shadow 0.15s ease;
-      background-color: #f9fafb;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      background-color: #ffffff;
+      color: #0f172a;
+      font-family: inherit;
+    }
+
+    select:hover,
+    input:hover,
+    textarea:hover {
+      border-color: #cbd5e1;
     }
 
     select:focus,
     input:focus,
     textarea:focus {
       border-color: #3b82f6;
-      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+      box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
       background-color: #ffffff;
+    }
+
+    select::placeholder,
+    input::placeholder,
+    textarea::placeholder {
+      color: #94a3b8;
     }
 
     textarea {
       resize: vertical;
-      min-height: 70px;
+      min-height: 100px;
+      line-height: 1.5;
     }
 
     /* Botões */
@@ -86,139 +122,176 @@
       align-items: center;
       justify-content: center;
       width: 100%;
-      padding: 12px 16px;
-      margin-top: 16px;
+      padding: 14px 20px;
+      margin-top: 24px;
       border: none;
-      border-radius: 9999px;
+      border-radius: 12px;
       font-size: 15px;
       font-weight: 600;
       cursor: pointer;
       text-align: center;
       text-decoration: none;
-      transition: transform 0.08s ease, box-shadow 0.12s ease, background-color 0.12s ease;
-      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.15);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      letter-spacing: -0.01em;
     }
 
     button.primary {
-      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      background: #2563eb;
       color: #ffffff;
     }
 
     button.primary:hover {
+      background: #1d4ed8;
       transform: translateY(-1px);
-      box-shadow: 0 12px 22px rgba(37, 99, 235, 0.45);
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
     }
 
     button.primary:active {
       transform: translateY(0);
-      box-shadow: 0 6px 14px rgba(15, 23, 42, 0.25);
-      background: linear-gradient(135deg, #1d4ed8, #2563eb);
+      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.2);
     }
 
     .btn.whatsapp {
-      background: linear-gradient(135deg, #22c55e, #16a34a);
+      background: #25d366;
       color: #ffffff;
-      gap: 8px;
+      gap: 10px;
+      margin-top: 16px;
     }
 
     .btn.whatsapp span.icon {
       display: inline-flex;
-      width: 18px;
-      height: 18px;
-      border-radius: 999px;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
       align-items: center;
       justify-content: center;
-      background: rgba(22, 163, 74, 0.15);
+      background: rgba(255, 255, 255, 0.2);
+      font-size: 12px;
     }
 
     .btn.whatsapp:hover {
+      background: #20ba5a;
       transform: translateY(-1px);
-      box-shadow: 0 12px 22px rgba(22, 163, 74, 0.45);
+      box-shadow: 0 4px 12px rgba(37, 211, 102, 0.3);
     }
 
     .btn.whatsapp:active {
       transform: translateY(0);
-      box-shadow: 0 6px 14px rgba(22, 163, 74, 0.25);
-      background: linear-gradient(135deg, #15803d, #16a34a);
+      box-shadow: 0 2px 6px rgba(37, 211, 102, 0.2);
     }
 
     /* Mensagens */
     .msg {
-      margin-top: 16px;
-      padding: 12px 14px;
+      margin-top: 20px;
+      padding: 20px;
       border-radius: 12px;
-      font-size: 0.9rem;
-      line-height: 1.55;
+      font-size: 0.9375rem;
+      line-height: 1.6;
     }
 
     .msg.sucesso {
-      background: #eff6ff;
-      color: #1d4ed8;
-      border: 1px solid #bfdbfe;
+      background: #f0f9ff;
+      color: #0c4a6e;
+      border: 1px solid #bae6fd;
     }
 
     .msg.erro {
       background: #fef2f2;
-      color: #b91c1c;
+      color: #991b1b;
       border: 1px solid #fecaca;
     }
 
     .msg p {
-      margin: 6px 0;
+      margin: 8px 0;
+    }
+
+    .msg p:first-child {
+      margin-top: 0;
+    }
+
+    .msg p:last-child {
+      margin-bottom: 0;
     }
 
     .resumo-header {
       display: flex;
       align-items: flex-start;
-      gap: 10px;
-      margin-bottom: 6px;
+      gap: 12px;
+      margin-bottom: 16px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid rgba(14, 165, 233, 0.2);
     }
 
     .resumo-header .icon-ok {
       flex-shrink: 0;
-      width: 28px;
-      height: 28px;
-      border-radius: 999px;
-      background: rgba(59, 130, 246, 0.12);
-      border: 1px solid rgba(59, 130, 246, 0.35);
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #0ea5e9;
+      color: #ffffff;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 16px;
+      font-size: 18px;
+      font-weight: 600;
     }
 
     .resumo-titulo {
       font-weight: 700;
-      font-size: 0.95rem;
-      margin-bottom: 2px;
+      font-size: 1rem;
+      margin-bottom: 4px;
+      color: #0c4a6e;
+      letter-spacing: -0.01em;
     }
 
     .resumo-subtitulo {
-      font-size: 0.85rem;
-      color: #1d4ed8;
+      font-size: 0.875rem;
+      color: #0369a1;
+      line-height: 1.4;
     }
 
     .resumo-lista {
       list-style: none;
       padding-left: 0;
-      margin: 8px 0 4px;
+      margin: 0 0 16px 0;
     }
 
     .resumo-lista li {
-      margin-bottom: 4px;
+      margin-bottom: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(14, 165, 233, 0.1);
+      font-size: 0.9375rem;
+      line-height: 1.5;
+    }
+
+    .resumo-lista li:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+    }
+
+    .resumo-lista li strong {
+      color: #0c4a6e;
+      font-weight: 600;
+      display: inline-block;
+      min-width: 140px;
     }
 
     .resumo-footer {
-      margin-top: 8px;
-      font-size: 0.85rem;
-      color: #1f2933;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(14, 165, 233, 0.2);
+      font-size: 0.875rem;
+      color: #0c4a6e;
+      line-height: 1.6;
     }
 
     #loading {
-      font-size: 0.95rem;
+      font-size: 0.9375rem;
       text-align: center;
-      color: #6b7280;
-      padding: 24px 0;
+      color: #64748b;
+      padding: 32px 0;
+      font-weight: 500;
     }
 
     /* Loading / spinners */
@@ -226,21 +299,21 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 10px;
+      gap: 12px;
     }
 
     .spinner {
-      width: 22px;
-      height: 22px;
-      border-radius: 999px;
-      border: 2px solid rgba(148, 163, 184, 0.4);
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 2.5px solid rgba(37, 99, 235, 0.2);
       border-top-color: #2563eb;
-      animation: spin 0.7s linear infinite;
+      animation: spin 0.8s cubic-bezier(0.5, 0, 0.5, 1) infinite;
     }
 
     .spinner.spinner-sm {
-      width: 18px;
-      height: 18px;
+      width: 16px;
+      height: 16px;
       border-width: 2px;
     }
 
@@ -270,16 +343,19 @@
       <div id="form-container" style="display:none;">
         <div id="form-fields">
           <label for="slotSelect">Data e horário</label>
-          <select id="slotSelect"></select>
+          <select id="slotSelect" required></select>
 
           <label for="nome">Nome completo</label>
           <input type="text" id="nome" placeholder="Seu nome" required>
 
+          <label for="dataNascimento">Data de nascimento</label>
+          <input type="text" id="dataNascimento" placeholder="06/05/1990" maxlength="10" required>
+
           <label for="telefone">Telefone (WhatsApp)</label>
           <input type="tel" id="telefone" placeholder="(DDD) 9 9999-9999" required>
 
-          <label for="observacoes">Observações (opcional)</label>
-          <textarea id="observacoes" placeholder="Ex: retorno, teleconsulta, etc."></textarea>
+          <label for="observacoes">Motivo da Consulta</label>
+          <textarea id="observacoes" placeholder="Ex: retorno, teleconsulta, etc." required></textarea>
 
           <button class="primary" type="button" onclick="enviarAgendamento()">
             Confirmar agendamento
@@ -290,7 +366,7 @@
 
         <div id="whatsapp-container" style="display:none; margin-top: 10px;">
           <a id="whatsapp-link" href="#" target="_blank" class="btn whatsapp">
-            <span class="icon">💬</span>
+            <span class="icon">📱</span>
             <span>Confirmar pelo WhatsApp</span>
           </a>
         </div>
@@ -362,6 +438,7 @@
 
   const nome = document.getElementById('nome').value.trim();
   const telefone = document.getElementById('telefone').value.trim();
+  const dataNascimento = document.getElementById('dataNascimento').value.trim();
   const observacoes = document.getElementById('observacoes').value.trim();
   const msgDiv = document.getElementById('mensagem');
   const waDiv = document.getElementById('whatsapp-container');
@@ -377,10 +454,19 @@
     return;
   }
 
-  if (!nome || !telefone) {
+  if (!nome || !telefone || !dataNascimento || !observacoes) {
     msgDiv.className = 'msg erro';
     msgDiv.style.display = 'block';
-    msgDiv.innerText = 'Preencha nome e telefone.';
+    msgDiv.innerText = 'Preencha data, nome, data de nascimento, telefone e motivo da consulta.';
+    return;
+  }
+
+  // Valida formato da data de nascimento (dd/MM/yyyy)
+  const dataNascRegex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+  if (!dataNascRegex.test(dataNascimento)) {
+    msgDiv.className = 'msg erro';
+    msgDiv.style.display = 'block';
+    msgDiv.innerText = 'Data de nascimento inválida. Use o formato DD/MM/AAAA (ex: 06/05/1990).';
     return;
   }
 
@@ -398,6 +484,7 @@
     rowIndex: slot.rowIndex,
     nome: nome,
     telefone: telefone,
+    dataNascimento: dataNascimento,
     observacoes: observacoes
   };
 
@@ -437,9 +524,10 @@
     resumoHtml += '<li><strong>Horário:</strong> ' + slot.hora + '</li>';
     resumoHtml += '<li><strong>Nome:</strong> ' + nome + '</li>';
     resumoHtml += '<li><strong>Telefone:</strong> ' + telefone + '</li>';
+    resumoHtml += '<li><strong>Data de nascimento:</strong> ' + dataNascimento + '</li>';
 
     if (observacoes) {
-      resumoHtml += '<li><strong>Observações:</strong> ' + observacoes + '</li>';
+      resumoHtml += '<li><strong>Motivo da Consulta:</strong> ' + observacoes + '</li>';
     }
 
     resumoHtml += '</ul>';
@@ -477,7 +565,26 @@
 }
 
 
-    document.addEventListener('DOMContentLoaded', carregarHorarios);
+    // Máscara para data de nascimento (dd/MM/yyyy)
+    document.addEventListener('DOMContentLoaded', function() {
+      carregarHorarios();
+      
+      const dataNascInput = document.getElementById('dataNascimento');
+      if (dataNascInput) {
+        dataNascInput.addEventListener('input', function(e) {
+          let value = e.target.value.replace(/\D/g, ''); // Remove tudo que não é dígito
+          
+          if (value.length > 2) {
+            value = value.substring(0, 2) + '/' + value.substring(2);
+          }
+          if (value.length > 5) {
+            value = value.substring(0, 5) + '/' + value.substring(5, 9);
+          }
+          
+          e.target.value = value;
+        });
+      }
+    });
   </script>
 </body>
 </html>
