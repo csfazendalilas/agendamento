@@ -259,6 +259,7 @@
     return;
   }
 
+  // Estado de "loading" enquanto envia para a API
   msgDiv.className = 'msg';
   msgDiv.style.display = 'block';
   msgDiv.innerText = 'Enviando agendamento...';
@@ -289,13 +290,13 @@
     const res = await resp.json();
     console.log('Resposta da API:', res);
 
-    const mensagem = (res && res.mensagem)
-      ? res.mensagem
-      : 'Agendamento realizado com sucesso!';
+    // Mensagem fixa orientando o usuário a finalizar pelo WhatsApp
+    const mensagemFinal =
+      'Para finalizar seu agendamento, por favor, clique em "Confirmar pelo WhatsApp".';
 
     msgDiv.className = 'msg sucesso';
     msgDiv.style.display = 'block';
-    msgDiv.innerText = mensagem;
+    msgDiv.innerText = mensagemFinal;
 
     const texto =
       'Olá! Aqui é ' + nome +
@@ -306,6 +307,12 @@
     const url = 'https://wa.me/' + WHATSAPP_DESTINO + '?text=' + encodeURIComponent(texto);
     waLink.href = url;
     waDiv.style.display = 'block';
+
+    // Esconde o botão de "Confirmar agendamento" para ficar apenas o WhatsApp
+    const btnConfirmar = document.querySelector('button.primary');
+    if (btnConfirmar) {
+      btnConfirmar.style.display = 'none';
+    }
 
     // Recarrega horários (aquele vira OCUPADO)
     carregarHorarios();
