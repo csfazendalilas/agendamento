@@ -22,9 +22,12 @@
     }
 
     .container {
-      max-width: 520px;
+      max-width: 560px;
       margin: 0 auto;
       padding: 24px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
     }
 
     .card {
@@ -323,7 +326,129 @@
       }
     }
 
-    /* Seção de avisos */
+    /* Tela de apresentação */
+    .intro-card h1 {
+      font-size: 1.5rem;
+      text-align: center;
+      margin-bottom: 8px;
+    }
+
+    .intro-card .intro-subtitle {
+      text-align: center;
+      color: #475569;
+      margin-bottom: 24px;
+      font-size: 1rem;
+      line-height: 1.5;
+    }
+
+    .intro-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .intro-info-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 18px;
+      background: #f8fafc;
+    }
+
+    .intro-info-card h3 {
+      margin: 0 0 10px 0;
+      font-size: 1rem;
+      color: #0f172a;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .intro-info-card h3 span.icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #2563eb;
+      color: #ffffff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+    }
+
+    .intro-info-card ul {
+      list-style: none;
+      padding-left: 0;
+      margin: 10px 0 0 0;
+      color: #475569;
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+
+    .intro-info-card ul li {
+      margin-bottom: 4px;
+    }
+
+    .intro-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 12px;
+      font-weight: 600;
+      color: #2563eb;
+      text-decoration: none;
+    }
+
+    .intro-link::after {
+      content: "↗";
+      font-size: 0.9rem;
+    }
+
+    .intro-link:hover {
+      color: #1d4ed8;
+    }
+
+    .intro-highlight {
+      background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+      border: 1px solid #93c5fd;
+      color: #1e3a8a;
+    }
+
+    .intro-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .intro-alert {
+      border-radius: 12px;
+      padding: 16px;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      color: #0f172a;
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+    }
+
+    .intro-alert strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .intro-alert.urgent {
+      background: #fef2f2;
+      border-color: #fecaca;
+      color: #991b1b;
+    }
+
+    .intro-alert.dentist {
+      background: #f0fdf4;
+      border-color: #bbf7d0;
+      color: #166534;
+    }
+
+    /* Seção de avisos (reutilizada no formulário) */
     .avisos-section {
       background: #f8fafc;
       border: 1px solid #e2e8f0;
@@ -420,38 +545,66 @@
 
 <body>
   <div class="container">
-    <div class="card">
+    <div id="intro-card" class="card intro-card">
+      <h1>Equipe Lilás - CS Fazenda</h1>
+      <p class="intro-subtitle">Atendendo temporariamente no Centro de Saúde Alto Ribeirão</p>
+
+      <div class="intro-grid">
+        <div class="intro-info-card">
+          <h3><span class="icon">💊</span>Renovação de medicamentos</h3>
+          <a href="https://forms.gle/hSNekJWonoEqcntFA" target="_blank" class="intro-link">👉 Acesse aqui</a>
+        </div>
+
+        <div class="intro-info-card">
+          <h3><span class="icon">📝</span>Agendamentos específicos</h3>
+          <ul>
+            <li>• Gestantes</li>
+            <li>• Crianças até 2 anos</li>
+            <li>• Preventivo</li>
+            <li>• DIU</li>
+          </ul>
+          <a href="https://forms.gle/9Kkq8irMLtpYLUUM9" target="_blank" class="intro-link">👉 Acesse aqui</a>
+        </div>
+
+        <div class="intro-info-card intro-highlight">
+          <h3><span class="icon">📅</span>Outras consultas</h3>
+          <p style="margin: 0;">Utilize este formulário para consultas que não sejam urgentes.</p>
+          <button class="primary" type="button" style="margin-top: 16px;" onclick="mostrarFormulario(true)">
+            Acessar formulário de agendamento
+          </button>
+        </div>
+      </div>
+
+      <div class="intro-actions">
+        <div class="intro-alert">
+          <strong>Ou procure o Centro de Saúde Alto Ribeirão</strong>
+          às 07h, quando são entregues as fichas para atendimento do dia.
+        </div>
+
+        <div class="intro-alert urgent">
+          <strong>🚨 Urgências e Emergências</strong>
+          Ligue SAMU 192 ou procure a UPA Sul, HU ou Hospital Celso Ramos.
+        </div>
+
+        <div class="intro-alert dentist">
+          <strong>🦷 Atendimento odontológico</strong>
+          Para dentista, procure o Centro de Saúde do Campeche a partir das 7h (Dra. Júlia). Atendimentos por ordem de chegada (3 a 4 fichas diárias).<br>
+          Crianças até 10 anos, gestantes e idosos (+60) agendam via WhatsApp: <a href="https://wa.me/554892187877" target="_blank" class="intro-link" style="display:inline;">48 9218-7877</a>
+        </div>
+
+        <button class="primary" type="button" onclick="mostrarFormulario(true)">
+          Prosseguir para agendamento de consultas
+        </button>
+      </div>
+    </div>
+
+    <div id="agendamento-card" class="card" style="display:none;">
       <h1>Agendamento de Consulta</h1>
       <p class="subtitulo">Escolha um horário disponível e preencha seus dados.</p>
 
       <div id="loading">Carregando horários disponíveis...</div>
 
       <div id="form-container" style="display:none;">
-        <div class="avisos-section">
-          <div class="aviso-item">
-            <div class="aviso-titulo">Para renovação de medicamentos</div>
-            <div style="margin-top: 8px;">
-              <a href="https://forms.gle/hSNekJWonoEqcntFA" target="_blank" class="aviso-link">👉 Acesse aqui</a>
-            </div>
-          </div>
-
-          <div class="aviso-item">
-            <div class="aviso-titulo">Para os seguintes agendamentos</div>
-            <ul class="aviso-lista">
-              <li>• Gestantes</li>
-              <li>• Crianças até 2 anos</li>
-              <li>• Preventivo</li>
-              <li>• DIU</li>
-            </ul>
-            <div style="margin-top: 8px;">
-              <a href="https://forms.gle/9Kkq8irMLtpYLUUM9" target="_blank" class="aviso-link">👉 Acesse aqui</a>
-            </div>
-          </div>
-
-          <div class="aviso-destaque">
-            📆 Para outras consultas que não sejam urgentes, agende por este formulário.
-          </div>
-        </div>
         <div id="form-fields">
           <label for="slotSelect">Data e horário</label>
           <select id="slotSelect" required></select>
@@ -675,6 +828,25 @@
   }
 }
 
+
+    function mostrarFormulario(scrollIntoView = false) {
+      const introCard = document.getElementById('intro-card');
+      const agendamentoCard = document.getElementById('agendamento-card');
+
+      if (introCard) {
+        introCard.style.display = 'none';
+      }
+
+      if (agendamentoCard) {
+        agendamentoCard.style.display = 'block';
+
+        if (scrollIntoView) {
+          setTimeout(() => {
+            agendamentoCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }, 150);
+        }
+      }
+    }
 
     // Máscara para data de nascimento (dd/MM/yyyy)
     document.addEventListener('DOMContentLoaded', function() {
