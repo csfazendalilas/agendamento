@@ -150,14 +150,15 @@ function bookSlot(bookingData) {
   );
 
   // Registra o agendamento
+  // Ordem: Timestamp, Data, Hora, Nome, DN, Observacoes, Telefone
   sheetAg.appendRow([
     new Date(), // Timestamp
     dataFormatada,
     horaFormatada,
     nome,
     dataNascimento,
-    telefone,
-    observacoes
+    observacoes,
+    telefone
   ]);
 
   return {
