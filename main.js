@@ -6,6 +6,7 @@ const WHATSAPP_DESTINO = '5548920039171';
 
 // Estado global
 let slotsGlobais = [];
+let currentStep = 1;
 
 // ============================================
 // VALIDAÇÃO INICIAL
@@ -17,6 +18,33 @@ let slotsGlobais = [];
     alert('ERRO: URL do Google Apps Script não configurada. Verifique o código.');
   }
 })();
+
+// ============================================
+// PROGRESS STEPS
+// ============================================
+function updateProgressSteps(step) {
+  currentStep = step;
+  const steps = document.querySelectorAll('.step');
+  const lines = document.querySelectorAll('.step-line');
+
+  steps.forEach((stepEl, index) => {
+    const stepNum = index + 1;
+    stepEl.classList.remove('active', 'completed');
+    
+    if (stepNum < step) {
+      stepEl.classList.add('completed');
+    } else if (stepNum === step) {
+      stepEl.classList.add('active');
+    }
+  });
+
+  lines.forEach((line, index) => {
+    line.classList.remove('completed');
+    if (index < step - 1) {
+      line.classList.add('completed');
+    }
+  });
+}
 
 // ============================================
 // NAVEGAÇÃO ENTRE TELAS
@@ -431,6 +459,9 @@ async function enviarAgendamento(event) {
       formFields.style.display = 'none';
     }
 
+    // Atualizar para step 3 (confirmar)
+    updateProgressSteps(3);
+
     msgDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   } catch (err) {
     console.error(err);
@@ -503,6 +534,13 @@ function configurarValidacaoEmTempoReal() {
         if (!validacao.valido) {
           mostrarErroCampo(campoId, validacao.mensagem);
         }
+      }
+    });
+
+    // Atualizar steps baseado no preenchimento
+    campo.addEventListener('change', function () {
+      if (campoId === 'slotSelect' && campo.value) {
+        updateProgressSteps(2);
       }
     });
   });
