@@ -3,6 +3,9 @@ const SHEET_ID = '15DF8LfTpuRw47etH-gZX49zwUebTUPB2FxtHibPtmY4';
 const SHEET_HORARIOS = 'Horarios';
 const SHEET_AGENDAMENTOS = 'Agendamentos';
 
+// Planilha geral do posto de saúde (onde você realmente atende)
+const SHEET_POSTO_ID = '1fpwmi85pLQWPQrKJiawZOrSOip8MQlsfmyUpIU1wGlk';
+
 // ====== ENDPOINTS (API) ======
 
 /**
@@ -149,7 +152,7 @@ function bookSlot(bookingData) {
     'dd/MM/yyyy'
   );
 
-  // Registra o agendamento
+  // Registra o agendamento na planilha pessoal
   // Ordem: Timestamp, Data, Hora, Nome, DN, Observacoes, Telefone
   sheetAg.appendRow([
     new Date(), // Timestamp
@@ -161,10 +164,56 @@ function bookSlot(bookingData) {
     telefone
   ]);
 
+  // ====== REGISTRA NA PLANILHA GERAL DO POSTO DE SAÚDE ======
+  try {
+    const ssPosto = SpreadsheetApp.openById(SHEET_POSTO_ID);
+    
+    // Busca a aba da equipe 783 (ignora a aba modelo)
+    const sheetPosto = encontrarAbaEquipe783(ssPosto);
+    
+    if (sheetPosto) {
+      // Encontra a próxima linha vazia baseada na coluna F (Nome)
+      const ultimaLinha = sheetPosto.getLastRow();
+      const proximaLinha = ultimaLinha + 1;
+      
+      // Escreve nas colunas corretas:
+      // C = Data, E = Horário, F = Nome, G = DN, H = Motivo
+      sheetPosto.getRange(proximaLinha, 3).setValue(dataFormatada);    // Coluna C - Data
+      sheetPosto.getRange(proximaLinha, 5).setValue(horaFormatada);    // Coluna E - Horário
+      sheetPosto.getRange(proximaLinha, 6).setValue(nome);             // Coluna F - Nome
+      sheetPosto.getRange(proximaLinha, 7).setValue(dataNascimento);   // Coluna G - Data de Nascimento
+      sheetPosto.getRange(proximaLinha, 8).setValue(observacoes);      // Coluna H - Motivo
+    } else {
+      Logger.log('Aba da equipe 783 não encontrada na planilha do posto de saúde');
+    }
+  } catch (erroPosto) {
+    // Se der erro ao registrar no posto, não impede o agendamento principal
+    Logger.log('Erro ao registrar na planilha do posto: ' + erroPosto.message);
+  }
+
   return {
     sucesso: true,
     mensagem: 'Agendamento realizado com sucesso!',
     data: data,
     hora: hora
   };
+}
+
+/**
+ * Encontra a aba da equipe 783 na planilha do posto
+ * Ignora a aba "783 (modelo)" e busca a aba atual (ex: "783 (08/12 - 12/12)")
+ */
+function encontrarAbaEquipe783(spreadsheet) {
+  const sheets = spreadsheet.getSheets();
+  
+  for (let i = 0; i < sheets.length; i++) {
+    const nomeAba = sheets[i].getName();
+    
+    // Verifica se contém "783" mas NÃO é a aba modelo
+    if (nomeAba.indexOf('783') !== -1 && nomeAba.toLowerCase().indexOf('modelo') === -1) {
+      return sheets[i];
+    }
+  }
+  
+  return null; // Não encontrou nenhuma aba válida
 }
