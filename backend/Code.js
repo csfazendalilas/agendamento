@@ -254,36 +254,74 @@ function encontrarAbaEquipe783PorData(spreadsheet, dataStr) {
 
 /**
  * Encontra a linha que tem "reservado" na coluna F com a data e horário correspondentes
- * Coluna C = Data, Coluna E = Horário, Coluna F = Nome (onde está "reservado")
+ * Coluna C = Data (pode estar mesclada), Coluna E = Horário, Coluna F = Nome (onde está "reservado")
  */
 function encontrarLinhaReservada(sheet, dataStr, horaStr) {
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return -1;
   
-  // Lê as colunas C (data), E (horário) e F (nome)
-  // C=3, E=5, F=6
+  // Lê todas as colunas
   const dados = sheet.getRange(1, 1, lastRow, 8).getDisplayValues();
   
-  // Normaliza a data e hora para comparação
-  const dataNormalizada = dataStr.trim();
-  const horaNormalizada = horaStr.trim();
+  // Extrai dia e mês da data do agendamento (formato DD/MM/YYYY)
+  const partesData = dataStr.split('/');
+  const diaAgendamento = partesData[0].replace(/^0/, ''); // Remove zero à esquerda
+  const mesAgendamento = partesData[1].replace(/^0/, ''); // Remove zero à esquerda
+  
+  // Normaliza a hora (remove zero à esquerda se houver)
+  const horaAgendamento = horaStr.replace(/^0/, '');
+  
+  Logger.log('Buscando: dia=' + diaAgendamento + ', mês=' + mesAgendamento + ', hora=' + horaAgendamento);
+  
+  // Guarda a última data encontrada (para lidar com células mescladas)
+  let ultimaDataEncontrada = '';
   
   for (let i = 0; i < dados.length; i++) {
-    const dataLinha = (dados[i][2] || '').toString().trim(); // Coluna C (índice 2)
+    let dataLinha = (dados[i][2] || '').toString().trim(); // Coluna C (índice 2)
     const horaLinha = (dados[i][4] || '').toString().trim(); // Coluna E (índice 4)
     const nomeLinha = (dados[i][5] || '').toString().toLowerCase().trim(); // Coluna F (índice 5)
     
-    // Verifica se a data contém o dia/mês do agendamento
-    // E se o horário bate
-    // E se o nome é "reservado"
-    const dataMatch = dataLinha === dataNormalizada || 
-                      dataLinha.indexOf(dataNormalizada.substring(0, 5)) !== -1; // Compara DD/MM
+    // Se a célula da data está vazia, usa a última data encontrada (célula mesclada)
+    if (dataLinha) {
+      ultimaDataEncontrada = dataLinha;
+    } else {
+      dataLinha = ultimaDataEncontrada;
+    }
     
-    if (dataMatch && horaLinha === horaNormalizada && nomeLinha === 'reservado') {
+    // Verifica se é "reservado"
+    if (nomeLinha !== 'reservado') {
+      continue;
+    }
+    
+    // Compara o horário (com e sem zero à esquerda)
+    const horaLinhaLimpa = horaLinha.replace(/^0/, '');
+    const horaMatch = horaLinha === horaStr || horaLinhaLimpa === horaAgendamento;
+    
+    if (!horaMatch) {
+      continue;
+    }
+    
+    // Compara a data
+    // A data na planilha pode estar em vários formatos: "9/12", "09/12", "9/12/2024", etc.
+    let dataMatch = false;
+    
+    // Extrai dia/mês da data da linha
+    const matchData = dataLinha.match(/(\d{1,2})\/(\d{1,2})/);
+    if (matchData) {
+      const diaLinha = matchData[1].replace(/^0/, '');
+      const mesLinha = matchData[2].replace(/^0/, '');
+      dataMatch = (diaLinha === diaAgendamento && mesLinha === mesAgendamento);
+    }
+    
+    Logger.log('Linha ' + (i+1) + ': data="' + dataLinha + '", hora="' + horaLinha + '", nome="' + nomeLinha + '", dataMatch=' + dataMatch + ', horaMatch=' + horaMatch);
+    
+    if (dataMatch && horaMatch) {
+      Logger.log('ENCONTROU na linha ' + (i + 1));
       return i + 1; // Retorna o número da linha (1-indexed)
     }
   }
   
+  Logger.log('Não encontrou linha com reservado para ' + dataStr + ' ' + horaStr);
   return -1; // Não encontrou
 }
 
