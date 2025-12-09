@@ -6,6 +6,70 @@ const SHEET_AGENDAMENTOS = 'Agendamentos';
 // Planilha geral do posto de saúde (onde você realmente atende)
 const SHEET_POSTO_ID = '1fpwmi85pLQWPQrKJiawZOrSOip8MQlsfmyUpIU1wGlk';
 
+// ====== FUNÇÃO DE TESTE - Execute para debugar ======
+function testarBuscaReservado() {
+  // ALTERE ESTES VALORES PARA TESTAR:
+  const dataParaTestar = '12/12/2024';
+  const horaParaTestar = '09:00';
+  
+  Logger.log('========== TESTE DE BUSCA ==========');
+  Logger.log('Data: ' + dataParaTestar);
+  Logger.log('Hora: ' + horaParaTestar);
+  
+  try {
+    const ssPosto = SpreadsheetApp.openById(SHEET_POSTO_ID);
+    Logger.log('✅ Abriu planilha do posto');
+    
+    // Lista todas as abas
+    const todasAbas = ssPosto.getSheets();
+    Logger.log('Abas encontradas:');
+    todasAbas.forEach(aba => {
+      Logger.log('  - ' + aba.getName());
+    });
+    
+    // Busca a aba 783
+    const sheetPosto = encontrarAbaEquipe783PorData(ssPosto, dataParaTestar);
+    
+    if (sheetPosto) {
+      Logger.log('✅ Aba encontrada: ' + sheetPosto.getName());
+      
+      // Busca a linha reservada
+      const linha = encontrarLinhaReservada(sheetPosto, dataParaTestar, horaParaTestar);
+      
+      if (linha > 0) {
+        Logger.log('✅ Linha com reservado encontrada: ' + linha);
+        
+        // Mostra o conteúdo da linha
+        const dadosLinha = sheetPosto.getRange(linha, 1, 1, 8).getDisplayValues()[0];
+        Logger.log('Conteúdo da linha:');
+        Logger.log('  A: ' + dadosLinha[0]);
+        Logger.log('  B: ' + dadosLinha[1]);
+        Logger.log('  C (Data): ' + dadosLinha[2]);
+        Logger.log('  D: ' + dadosLinha[3]);
+        Logger.log('  E (Hora): ' + dadosLinha[4]);
+        Logger.log('  F (Nome): ' + dadosLinha[5]);
+        Logger.log('  G (DN): ' + dadosLinha[6]);
+        Logger.log('  H (Motivo): ' + dadosLinha[7]);
+      } else {
+        Logger.log('❌ Linha com "reservado" NÃO encontrada');
+        
+        // Mostra algumas linhas para debug
+        Logger.log('Primeiras 20 linhas da aba:');
+        const dados = sheetPosto.getRange(1, 1, Math.min(20, sheetPosto.getLastRow()), 8).getDisplayValues();
+        dados.forEach((row, i) => {
+          Logger.log('Linha ' + (i+1) + ': C="' + row[2] + '" E="' + row[4] + '" F="' + row[5] + '"');
+        });
+      }
+    } else {
+      Logger.log('❌ Aba 783 NÃO encontrada para a data ' + dataParaTestar);
+    }
+  } catch (erro) {
+    Logger.log('❌ ERRO: ' + erro.message);
+  }
+  
+  Logger.log('========== FIM DO TESTE ==========');
+}
+
 // ====== ENDPOINTS (API) ======
 
 /**
