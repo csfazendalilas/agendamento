@@ -7,6 +7,7 @@ const WHATSAPP_DESTINO = '5548920039171';
 // Estado global
 let slotsGlobais = [];
 let currentStep = 1;
+let horariosCarregados = false; // Flag para saber se já carregou
 
 // ============================================
 // VALIDAÇÃO INICIAL
@@ -85,8 +86,85 @@ function voltarParaIntro() {
 }
 
 // ============================================
-// CARREGAMENTO DE HORÁRIOS
+// CARREGAMENTO DE HORÁRIOS (EM BACKGROUND)
 // ============================================
+
+/**
+ * Converte data no formato DD/MM/YYYY para objeto Date
+ */
+function parseDataBR(dataStr) {
+  const partes = dataStr.split('/');
+  if (partes.length !== 3) return new Date(0);
+  const dia = parseInt(partes[0], 10);
+  const mes = parseInt(partes[1], 10) - 1; // Mês começa em 0
+  const ano = parseInt(partes[2], 10);
+  return new Date(ano, mes, dia);
+}
+
+/**
+ * Converte hora no formato HH:MM para minutos (para ordenação)
+ */
+function parseHora(horaStr) {
+  const partes = horaStr.split(':');
+  if (partes.length !== 2) return 0;
+  return parseInt(partes[0], 10) * 60 + parseInt(partes[1], 10);
+}
+
+/**
+ * Ordena os slots por data e hora crescente
+ */
+function ordenarSlots(slots) {
+  return slots.sort((a, b) => {
+    const dataA = parseDataBR(a.data);
+    const dataB = parseDataBR(b.data);
+    
+    // Primeiro compara por data
+    if (dataA.getTime() !== dataB.getTime()) {
+      return dataA.getTime() - dataB.getTime();
+    }
+    
+    // Se mesma data, compara por hora
+    return parseHora(a.hora) - parseHora(b.hora);
+  });
+}
+
+/**
+ * Carrega os horários em background (chamado quando o site abre)
+ */
+async function preCarregarHorarios() {
+  if (horariosCarregados) return; // Já carregou, não precisa carregar de novo
+  
+  try {
+    if (!API_URL || API_URL.includes('SEU_ID_AQUI')) {
+      console.error('❌ API_URL não configurada');
+      return;
+    }
+
+    const url = API_URL + '?action=getSlots';
+    console.log('🔄 Pré-carregando horários em background...');
+
+    const resp = await fetch(url, {
+      method: 'GET',
+      mode: 'cors',
+      cache: 'no-cache'
+    });
+
+    if (!resp.ok) {
+      throw new Error('Erro ao carregar horários (HTTP ' + resp.status + ')');
+    }
+
+    const slots = await resp.json();
+    slotsGlobais = ordenarSlots(slots || []);
+    horariosCarregados = true;
+    console.log('✅ Horários pré-carregados:', slotsGlobais.length, 'disponíveis');
+  } catch (err) {
+    console.error('❌ Erro no pré-carregamento:', err);
+  }
+}
+
+/**
+ * Exibe os horários na tela (usa dados já carregados se disponíveis)
+ */
 async function carregarHorarios() {
   const loading = document.getElementById('loading');
   const formContainer = document.getElementById('form-container');
@@ -96,31 +174,37 @@ async function carregarHorarios() {
   formContainer.style.display = 'none';
 
   try {
-    if (!API_URL || API_URL.includes('SEU_ID_AQUI')) {
-      throw new Error('URL do Google Apps Script não configurada. Verifique a constante API_URL no código.');
-    }
-
-    const url = API_URL + '?action=getSlots';
-    console.log('🔍 Fazendo requisição para:', url);
-
-    const resp = await fetch(url, {
-      method: 'GET',
-      mode: 'cors',
-      cache: 'no-cache'
-    });
-
-    console.log('📡 Status da resposta:', resp.status, resp.statusText);
-
-    if (!resp.ok) {
-      if (resp.status === 404) {
-        throw new Error('Script não encontrado. Verifique se o Google Apps Script está publicado corretamente.');
+    // Se ainda não carregou, carrega agora
+    if (!horariosCarregados) {
+      if (!API_URL || API_URL.includes('SEU_ID_AQUI')) {
+        throw new Error('URL do Google Apps Script não configurada. Verifique a constante API_URL no código.');
       }
-      throw new Error('Erro ao carregar horários (HTTP ' + resp.status + ')');
-    }
 
-    const slots = await resp.json();
-    console.log('Slots recebidos do servidor:', slots);
-    slotsGlobais = slots || [];
+      const url = API_URL + '?action=getSlots';
+      console.log('🔍 Fazendo requisição para:', url);
+
+      const resp = await fetch(url, {
+        method: 'GET',
+        mode: 'cors',
+        cache: 'no-cache'
+      });
+
+      console.log('📡 Status da resposta:', resp.status, resp.statusText);
+
+      if (!resp.ok) {
+        if (resp.status === 404) {
+          throw new Error('Script não encontrado. Verifique se o Google Apps Script está publicado corretamente.');
+        }
+        throw new Error('Erro ao carregar horários (HTTP ' + resp.status + ')');
+      }
+
+      const slots = await resp.json();
+      console.log('Slots recebidos do servidor:', slots);
+      slotsGlobais = ordenarSlots(slots || []);
+      horariosCarregados = true;
+    } else {
+      console.log('✅ Usando horários já carregados');
+    }
 
     if (!slotsGlobais.length) {
       loading.innerHTML = `
@@ -550,6 +634,9 @@ function configurarValidacaoEmTempoReal() {
 // INICIALIZAÇÃO
 // ============================================
 document.addEventListener('DOMContentLoaded', function () {
+  // 🔄 PRÉ-CARREGA OS HORÁRIOS EM BACKGROUND (assim que o site abre)
+  preCarregarHorarios();
+
   // Máscaras
   const dataNascInput = document.getElementById('dataNascimento');
   if (dataNascInput) {
