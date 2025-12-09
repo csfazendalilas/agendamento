@@ -36,14 +36,19 @@ function onEditInstalavel(e) {
 }
 
 /**
- * Função chamada pelo trigger simples (backup, caso funcione)
+ * Função onEdit simples - NÃO FAZ NADA
+ * (O trigger simples não tem permissão para acessar outras planilhas)
+ * Usamos apenas o trigger instalável (onEditInstalavel)
  */
 function onEdit(e) {
-  processarEdicao(e);
+  // Não faz nada - apenas o trigger instalável funciona
+  return;
 }
 
 /**
  * Processa a edição - verifica se é "reservado" na coluna F de uma aba 783
+ * Se adicionar "reservado" -> cria horário LIVRE na planilha de agendamentos
+ * Se apagar "reservado" -> remove o horário da planilha de agendamentos
  */
 function processarEdicao(e) {
   if (!e || !e.source || !e.range) {
@@ -65,11 +70,9 @@ function processarEdicao(e) {
     return; // Não é a coluna F, ignora
   }
   
-  // Verifica se o valor é "reservado" (case insensitive)
-  const valor = (range.getValue() || '').toString().toLowerCase().trim();
-  if (valor !== 'reservado') {
-    return; // Não é "reservado", ignora
-  }
+  // Pega o valor atual e o valor antigo
+  const valorAtual = (range.getValue() || '').toString().toLowerCase().trim();
+  const valorAntigo = (e.oldValue || '').toString().toLowerCase().trim();
   
   // Pega a linha que foi editada
   const linha = range.getRow();
@@ -92,23 +95,26 @@ function processarEdicao(e) {
   }
   
   // Log para debug
-  Logger.log('Linha original: ' + linha);
-  Logger.log('Data encontrada na linha ' + linhaAtual + ': ' + dataTexto);
-  Logger.log('Horário: ' + horario);
+  Logger.log('Linha: ' + linha + ' | Valor antigo: "' + valorAntigo + '" | Valor atual: "' + valorAtual + '"');
+  Logger.log('Data: ' + dataTexto + ' | Horário: ' + horario);
   
-  // Verifica se encontrou a data
-  if (!dataTexto) {
-    SpreadsheetApp.getUi().alert('Data não encontrada na coluna C (verificou até a linha 1)');
+  // Verifica se encontrou data e horário
+  if (!dataTexto || !horario) {
+    Logger.log('Data ou horário não encontrados');
     return;
   }
   
-  if (!horario) {
-    SpreadsheetApp.getUi().alert('Horário não encontrado na coluna E desta linha (linha ' + linha + ')');
-    return;
+  // CASO 1: Escreveu "reservado" -> libera horário na planilha de agendamentos
+  if (valorAtual === 'reservado' && valorAntigo !== 'reservado') {
+    Logger.log('Ação: LIBERAR horário');
+    liberarHorarioAgendamento(dataTexto, horario);
   }
   
-  // Abre o horário na planilha de agendamentos
-  liberarHorarioAgendamento(dataTexto, horario);
+  // CASO 2: Apagou "reservado" -> remove horário da planilha de agendamentos
+  else if (valorAntigo === 'reservado' && valorAtual !== 'reservado') {
+    Logger.log('Ação: REMOVER horário');
+    removerHorarioAgendamento(dataTexto, horario);
+  }
 }
 
 /**
@@ -163,6 +169,51 @@ function liberarHorarioAgendamento(data, horario) {
   } catch (erro) {
     Logger.log('Erro ao liberar horário: ' + erro.message);
     SpreadsheetApp.getUi().alert('Erro ao liberar horário: ' + erro.message);
+  }
+}
+
+/**
+ * Remove um horário da planilha de agendamentos
+ */
+function removerHorarioAgendamento(data, horario) {
+  try {
+    const ss = SpreadsheetApp.openById(PLANILHA_AGENDAMENTOS_ID);
+    const sheet = ss.getSheetByName(ABA_HORARIOS);
+    
+    if (!sheet) {
+      Logger.log('Aba Horarios não encontrada na planilha de agendamentos');
+      return;
+    }
+    
+    // Normaliza a data e hora para comparação
+    const dataNormalizada = normalizarTexto(data);
+    const horaNormalizada = normalizarTexto(horario);
+    
+    Logger.log('Removendo: Data=' + dataNormalizada + ' | Hora=' + horaNormalizada);
+    
+    // Busca o horário na planilha
+    const lastRow = sheet.getLastRow();
+    
+    if (lastRow >= 2) {
+      const dados = sheet.getRange(2, 1, lastRow - 1, 3).getDisplayValues();
+      
+      for (let i = dados.length - 1; i >= 0; i--) {
+        const dataExistente = normalizarTexto(dados[i][0]);
+        const horaExistente = normalizarTexto(dados[i][1]);
+        
+        if (dataExistente === dataNormalizada && horaExistente === horaNormalizada) {
+          // Encontrou o horário, remove a linha
+          sheet.deleteRow(i + 2);
+          Logger.log('Horário ' + horaNormalizada + ' do dia ' + dataNormalizada + ' removido com sucesso!');
+          return;
+        }
+      }
+    }
+    
+    Logger.log('Horário não encontrado para remover');
+    
+  } catch (erro) {
+    Logger.log('Erro ao remover horário: ' + erro.message);
   }
 }
 
