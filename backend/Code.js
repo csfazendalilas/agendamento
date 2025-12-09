@@ -112,7 +112,7 @@ function getAvailableSlots() {
 }
 
 /**
- * Marca horário como OCUPADO e registra na aba Agendamentos
+ * Registra o agendamento e EXCLUI a linha do horário
  */
 function bookSlot(bookingData) {
   const ss = SpreadsheetApp.openById(SHEET_ID);
@@ -132,11 +132,12 @@ function bookSlot(bookingData) {
     throw new Error('Esse horário acabou de ser ocupado. Por favor, escolha outro.');
   }
 
-  // Marca como OCUPADO
-  sheetHor.getRange(rowIndex, 3).setValue('OCUPADO');
-
+  // Guarda os dados ANTES de excluir a linha
   const data = row[0];
   const hora = row[1];
+
+  // EXCLUI a linha do horário (em vez de marcar como OCUPADO)
+  sheetHor.deleteRow(rowIndex);
 
   // Formata a hora para HH:mm (sem segundos)
   const horaFormatada = Utilities.formatDate(
