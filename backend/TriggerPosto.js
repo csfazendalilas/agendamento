@@ -7,11 +7,50 @@ const PLANILHA_AGENDAMENTOS_ID = '15DF8LfTpuRw47etH-gZX49zwUebTUPB2FxtHibPtmY4';
 const ABA_HORARIOS = 'Horarios';
 
 /**
- * Trigger que executa quando uma célula é editada
- * Quando "reservado" é escrito na coluna F de uma aba 783,
- * libera o horário na planilha de agendamentos
+ * IMPORTANTE: Execute esta função UMA VEZ para criar o trigger instalável
+ * Vá em Executar > criarTriggerInstalavel
+ */
+function criarTriggerInstalavel() {
+  // Remove triggers antigos desta função
+  const triggers = ScriptApp.getProjectTriggers();
+  triggers.forEach(trigger => {
+    if (trigger.getHandlerFunction() === 'onEditInstalavel') {
+      ScriptApp.deleteTrigger(trigger);
+    }
+  });
+  
+  // Cria novo trigger instalável
+  ScriptApp.newTrigger('onEditInstalavel')
+    .forSpreadsheet(SpreadsheetApp.getActive())
+    .onEdit()
+    .create();
+    
+  SpreadsheetApp.getUi().alert('Trigger criado com sucesso! Agora quando você escrever "reservado" na coluna F, o horário será liberado automaticamente.');
+}
+
+/**
+ * Função chamada pelo trigger instalável (tem permissões para acessar outras planilhas)
+ */
+function onEditInstalavel(e) {
+  processarEdicao(e);
+}
+
+/**
+ * Função chamada pelo trigger simples (backup, caso funcione)
  */
 function onEdit(e) {
+  processarEdicao(e);
+}
+
+/**
+ * Processa a edição - verifica se é "reservado" na coluna F de uma aba 783
+ */
+function processarEdicao(e) {
+  if (!e || !e.source || !e.range) {
+    Logger.log('Evento inválido');
+    return;
+  }
+  
   const sheet = e.source.getActiveSheet();
   const range = e.range;
   const nomeAba = sheet.getName();
@@ -35,17 +74,41 @@ function onEdit(e) {
   // Pega a linha que foi editada
   const linha = range.getRow();
   
-  // Pega a data (coluna C = 3) e horário (coluna E = 5) da mesma linha
-  const data = sheet.getRange(linha, 3).getValue();
-  const horario = sheet.getRange(linha, 5).getValue();
+  // Pega o horário (coluna E = 5) da mesma linha
+  const horarioValor = sheet.getRange(linha, 5).getValue();
+  const horarioTexto = sheet.getRange(linha, 5).getDisplayValue();
+  const horario = horarioTexto || horarioValor;
   
-  if (!data || !horario) {
-    SpreadsheetApp.getUi().alert('Data ou horário não encontrados nesta linha.');
+  // A data pode estar em uma célula mesclada acima
+  // Busca a data subindo nas linhas até encontrar
+  let dataTexto = '';
+  let linhaAtual = linha;
+  
+  while (linhaAtual >= 1 && !dataTexto) {
+    dataTexto = sheet.getRange(linhaAtual, 3).getDisplayValue();
+    if (!dataTexto) {
+      linhaAtual--;
+    }
+  }
+  
+  // Log para debug
+  Logger.log('Linha original: ' + linha);
+  Logger.log('Data encontrada na linha ' + linhaAtual + ': ' + dataTexto);
+  Logger.log('Horário: ' + horario);
+  
+  // Verifica se encontrou a data
+  if (!dataTexto) {
+    SpreadsheetApp.getUi().alert('Data não encontrada na coluna C (verificou até a linha 1)');
+    return;
+  }
+  
+  if (!horario) {
+    SpreadsheetApp.getUi().alert('Horário não encontrado na coluna E desta linha (linha ' + linha + ')');
     return;
   }
   
   // Abre o horário na planilha de agendamentos
-  liberarHorarioAgendamento(data, horario);
+  liberarHorarioAgendamento(dataTexto, horario);
 }
 
 /**
@@ -58,29 +121,34 @@ function liberarHorarioAgendamento(data, horario) {
     
     if (!sheet) {
       Logger.log('Aba Horarios não encontrada na planilha de agendamentos');
+      SpreadsheetApp.getUi().alert('Erro: Aba "Horarios" não encontrada na planilha de agendamentos');
       return;
     }
     
-    // Formata a data e hora para comparação
-    const dataFormatada = formatarData(data);
-    const horaFormatada = formatarHora(horario);
+    // Normaliza a data e hora para comparação (remove espaços extras)
+    const dataNormalizada = normalizarTexto(data);
+    const horaNormalizada = normalizarTexto(horario);
+    
+    Logger.log('Buscando: Data=' + dataNormalizada + ' | Hora=' + horaNormalizada);
     
     // Verifica se o horário já existe na planilha
     const lastRow = sheet.getLastRow();
     let horarioExiste = false;
     
     if (lastRow >= 2) {
-      const dados = sheet.getRange(2, 1, lastRow - 1, 3).getValues();
+      const dados = sheet.getRange(2, 1, lastRow - 1, 3).getDisplayValues();
       
       for (let i = 0; i < dados.length; i++) {
-        const dataExistente = formatarData(dados[i][0]);
-        const horaExistente = formatarHora(dados[i][1]);
+        const dataExistente = normalizarTexto(dados[i][0]);
+        const horaExistente = normalizarTexto(dados[i][1]);
         
-        if (dataExistente === dataFormatada && horaExistente === horaFormatada) {
+        Logger.log('Comparando linha ' + (i+2) + ': ' + dataExistente + ' vs ' + dataNormalizada + ' | ' + horaExistente + ' vs ' + horaNormalizada);
+        
+        if (dataExistente === dataNormalizada && horaExistente === horaNormalizada) {
           // Horário existe, muda para LIVRE
           sheet.getRange(i + 2, 3).setValue('LIVRE');
           horarioExiste = true;
-          Logger.log('Horário ' + horaFormatada + ' do dia ' + dataFormatada + ' liberado com sucesso!');
+          Logger.log('Horário ' + horaNormalizada + ' do dia ' + dataNormalizada + ' liberado com sucesso!');
           break;
         }
       }
@@ -89,29 +157,48 @@ function liberarHorarioAgendamento(data, horario) {
     // Se o horário não existe, cria um novo
     if (!horarioExiste) {
       sheet.appendRow([data, horario, 'LIVRE']);
-      Logger.log('Novo horário criado: ' + dataFormatada + ' ' + horaFormatada);
+      Logger.log('Novo horário criado: ' + dataNormalizada + ' ' + horaNormalizada);
     }
     
   } catch (erro) {
     Logger.log('Erro ao liberar horário: ' + erro.message);
+    SpreadsheetApp.getUi().alert('Erro ao liberar horário: ' + erro.message);
   }
 }
 
 /**
- * Formata data para dd/MM/yyyy
+ * Normaliza texto removendo espaços extras e convertendo para comparação
  */
-function formatarData(data) {
-  if (!data) return '';
-  const d = new Date(data);
-  return Utilities.formatDate(d, 'America/Sao_Paulo', 'dd/MM/yyyy');
+function normalizarTexto(valor) {
+  if (!valor) return '';
+  return valor.toString().trim();
 }
 
 /**
- * Formata hora para HH:mm
+ * Formata data para dd/MM/yyyy (caso seja um objeto Date)
+ */
+function formatarData(data) {
+  if (!data) return '';
+  if (typeof data === 'string') return data.trim();
+  try {
+    const d = new Date(data);
+    return Utilities.formatDate(d, 'America/Sao_Paulo', 'dd/MM/yyyy');
+  } catch (e) {
+    return data.toString().trim();
+  }
+}
+
+/**
+ * Formata hora para HH:mm (caso seja um objeto Date)
  */
 function formatarHora(hora) {
   if (!hora) return '';
-  const h = new Date(hora);
-  return Utilities.formatDate(h, 'America/Sao_Paulo', 'HH:mm');
+  if (typeof hora === 'string') return hora.trim();
+  try {
+    const h = new Date(hora);
+    return Utilities.formatDate(h, 'America/Sao_Paulo', 'HH:mm');
+  } catch (e) {
+    return hora.toString().trim();
+  }
 }
 
