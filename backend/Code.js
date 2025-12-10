@@ -242,11 +242,12 @@ function bookSlot(bookingData) {
       
       if (linhaEncontrada > 0) {
         // Substitui "reservado" pelos dados do paciente
-        // F = Nome, G = DN, H = Motivo
+        // D = "app", F = Nome, G = DN, H = Motivo
+        sheetPosto.getRange(linhaEncontrada, 4).setValue('app');            // Coluna D - Marcado pelo app
         sheetPosto.getRange(linhaEncontrada, 6).setValue(nome);             // Coluna F - Nome
         sheetPosto.getRange(linhaEncontrada, 7).setValue(dataNascimento);   // Coluna G - Data de Nascimento
         sheetPosto.getRange(linhaEncontrada, 8).setValue(observacoes);      // Coluna H - Motivo
-        Logger.log('Dados preenchidos na linha ' + linhaEncontrada + ' da planilha do posto');
+        Logger.log('Dados preenchidos na linha ' + linhaEncontrada + ' da planilha do posto (marcado como app)');
       } else {
         Logger.log('Linha com "reservado" não encontrada para data ' + dataFormatada + ' e hora ' + horaFormatada);
       }
@@ -268,52 +269,90 @@ function bookSlot(bookingData) {
 
 /**
  * Encontra a aba da equipe 783 que contém a data especificada
- * As abas têm formato "783 (08/12 - 12/12)" indicando o período
+ * Formato da aba: "783 (08/12 - 12/12) A" onde A=2025, B=2026
  */
 function encontrarAbaEquipe783PorData(spreadsheet, dataStr) {
   const sheets = spreadsheet.getSheets();
   
-  // Converte a data do agendamento para comparação (DD/MM/YYYY -> Date)
+  // Converte a data do agendamento para comparação (DD/MM/YYYY)
   const partesData = dataStr.split('/');
   const diaAgendamento = parseInt(partesData[0], 10);
   const mesAgendamento = parseInt(partesData[1], 10);
+  const anoAgendamento = parseInt(partesData[2], 10);
+  
+  // Define o sufixo baseado no ano: A=2025, B=2026
+  let sufixoAno = '';
+  if (anoAgendamento === 2025) {
+    sufixoAno = 'A';
+  } else if (anoAgendamento === 2026) {
+    sufixoAno = 'B';
+  }
+  
+  Logger.log('Buscando aba 783 para dia=' + diaAgendamento + ' mês=' + mesAgendamento + ' ano=' + anoAgendamento + ' sufixo=' + sufixoAno);
+  
+  let abaEncontrada = null;
   
   for (let i = 0; i < sheets.length; i++) {
     const nomeAba = sheets[i].getName();
     
     // Verifica se contém "783" mas NÃO é a aba modelo
-    if (nomeAba.indexOf('783') !== -1 && nomeAba.toLowerCase().indexOf('modelo') === -1) {
-      // Tenta extrair as datas do nome da aba (ex: "783 (08/12 - 12/12)")
-      const match = nomeAba.match(/(\d{1,2})\/(\d{1,2})\s*-\s*(\d{1,2})\/(\d{1,2})/);
+    if (nomeAba.indexOf('783') === -1 || nomeAba.toLowerCase().indexOf('modelo') !== -1) {
+      continue;
+    }
+    
+    // Verifica se termina com o sufixo do ano (A ou B)
+    // Remove espaços extras e verifica o final
+    const nomeAbaTrimmed = nomeAba.trim();
+    const terminaComSufixo = nomeAbaTrimmed.endsWith(' ' + sufixoAno) || 
+                             nomeAbaTrimmed.endsWith(')' + sufixoAno) ||
+                             nomeAbaTrimmed.endsWith(') ' + sufixoAno);
+    
+    if (sufixoAno && !terminaComSufixo) {
+      continue; // Não é do ano correto, pula
+    }
+    
+    // Tenta extrair as datas do nome da aba
+    // Padrão: "783 (08/12 - 12/12) A" - formato DD/MM - DD/MM
+    let match = nomeAba.match(/(\d{1,2})\/(\d{1,2})\s*-\s*(\d{1,2})\/(\d{1,2})/);
+    
+    if (match) {
+      const diaInicio = parseInt(match[1], 10);
+      const mesInicio = parseInt(match[2], 10);
+      const diaFim = parseInt(match[3], 10);
+      const mesFim = parseInt(match[4], 10);
       
-      if (match) {
-        const diaInicio = parseInt(match[1], 10);
-        const mesInicio = parseInt(match[2], 10);
-        const diaFim = parseInt(match[3], 10);
-        const mesFim = parseInt(match[4], 10);
-        
-        // Verifica se a data do agendamento está no período da aba
-        // Simplificado: verifica se o mês é igual e o dia está no intervalo
-        if (mesAgendamento === mesInicio && mesAgendamento === mesFim) {
-          if (diaAgendamento >= diaInicio && diaAgendamento <= diaFim) {
-            return sheets[i];
-          }
-        }
-        // Caso o período cruze meses (ex: 30/11 - 04/12)
-        else if (mesAgendamento === mesInicio && diaAgendamento >= diaInicio) {
-          return sheets[i];
-        }
-        else if (mesAgendamento === mesFim && diaAgendamento <= diaFim) {
-          return sheets[i];
-        }
-      } else {
-        // Se não conseguiu extrair as datas, retorna a primeira aba 783 encontrada
-        return sheets[i];
+      Logger.log('Aba "' + nomeAba + '": início=' + diaInicio + '/' + mesInicio + ', fim=' + diaFim + '/' + mesFim);
+      
+      // Verifica se a data está no período
+      if (verificarDataNoPeriodo(diaAgendamento, mesAgendamento, diaInicio, mesInicio, diaFim, mesFim)) {
+        Logger.log('✅ Aba encontrada: ' + nomeAba);
+        abaEncontrada = sheets[i];
+        break;
       }
     }
   }
   
-  return null;
+  return abaEncontrada;
+}
+
+/**
+ * Verifica se uma data está dentro de um período
+ */
+function verificarDataNoPeriodo(dia, mes, diaInicio, mesInicio, diaFim, mesFim) {
+  // Mesmo mês início e fim
+  if (mesInicio === mesFim) {
+    return mes === mesInicio && dia >= diaInicio && dia <= diaFim;
+  }
+  
+  // Período cruza meses (ex: 30/11 - 04/12)
+  if (mes === mesInicio && dia >= diaInicio) {
+    return true;
+  }
+  if (mes === mesFim && dia <= diaFim) {
+    return true;
+  }
+  
+  return false;
 }
 
 /**
