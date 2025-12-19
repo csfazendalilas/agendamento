@@ -270,10 +270,11 @@ function bookSlot(bookingData) {
 /**
  * Encontra a aba da equipe 783 que contém a data especificada
  * Formato da aba: "783 (08/12 - 12/12) A" onde A=2025, B=2026
+ * 
+ * OTIMIZADO: Tenta adivinhar o nome da aba primeiro (instantâneo!)
+ * Se não encontrar, faz busca filtrada como fallback
  */
 function encontrarAbaEquipe783PorData(spreadsheet, dataStr) {
-  const sheets = spreadsheet.getSheets();
-  
   // Converte a data do agendamento para comparação (DD/MM/YYYY)
   const partesData = dataStr.split('/');
   const diaAgendamento = parseInt(partesData[0], 10);
@@ -283,56 +284,100 @@ function encontrarAbaEquipe783PorData(spreadsheet, dataStr) {
   // Define o sufixo baseado no ano: A=2025, B=2026
   let sufixoAno = '';
   if (anoAgendamento === 2025) {
-    sufixoAno = 'A';
+    sufixoAno = ' A';
   } else if (anoAgendamento === 2026) {
-    sufixoAno = 'B';
+    sufixoAno = ' B';
   }
   
-  Logger.log('Buscando aba 783 para dia=' + diaAgendamento + ' mês=' + mesAgendamento + ' ano=' + anoAgendamento + ' sufixo=' + sufixoAno);
+  // ========== OTIMIZAÇÃO: TENTAR ADIVINHAR O NOME DA ABA ==========
+  // Calcula a semana de trabalho (segunda a sexta) que contém a data
+  const dataObj = new Date(anoAgendamento, mesAgendamento - 1, diaAgendamento);
+  const diaSemana = dataObj.getDay(); // 0=dom, 1=seg, ..., 5=sex, 6=sab
   
-  let abaEncontrada = null;
+  // Encontra a segunda-feira da semana
+  let diasAteSegunda = diaSemana === 0 ? -6 : 1 - diaSemana;
+  const segunda = new Date(dataObj);
+  segunda.setDate(dataObj.getDate() + diasAteSegunda);
   
+  // Encontra a sexta-feira da semana
+  const sexta = new Date(segunda);
+  sexta.setDate(segunda.getDate() + 4);
+  
+  const diaIni = segunda.getDate();
+  const mesIni = segunda.getMonth() + 1;
+  const diaFim = sexta.getDate();
+  const mesFim = sexta.getMonth() + 1;
+  
+  // Formata com zero à esquerda
+  const diaIniStr = diaIni < 10 ? '0' + diaIni : '' + diaIni;
+  const mesIniStr = mesIni < 10 ? '0' + mesIni : '' + mesIni;
+  const diaFimStr = diaFim < 10 ? '0' + diaFim : '' + diaFim;
+  const mesFimStr = mesFim < 10 ? '0' + mesFim : '' + mesFim;
+  
+  Logger.log('Buscando aba 783 para ' + dataStr);
+  Logger.log('Semana calculada: ' + diaIni + '/' + mesIni + ' - ' + diaFim + '/' + mesFim);
+  Logger.log('Sufixo do ano: "' + sufixoAno + '"');
+  
+  // Tenta vários formatos de nome comuns
+  const tentativas = [
+    '783 (' + diaIniStr + '/' + mesIniStr + ' - ' + diaFimStr + '/' + mesFimStr + ')' + sufixoAno,
+    ' 783 (' + diaIniStr + '/' + mesIniStr + ' - ' + diaFimStr + '/' + mesFimStr + ')' + sufixoAno,
+    '783 (' + diaIni + '/' + mesIni + ' - ' + diaFim + '/' + mesFim + ')' + sufixoAno,
+    '783(' + diaIniStr + '/' + mesIniStr + ' - ' + diaFimStr + '/' + mesFimStr + ')' + sufixoAno,
+    '783 (' + diaIni + '/' + mesIniStr + '-' + diaFim + '/' + mesFimStr + ')' + sufixoAno,
+    '783 (' + diaIniStr + '/' + mesIniStr + '-' + diaFimStr + '/' + mesFimStr + ')' + sufixoAno,
+    '783 (' + diaIni + '-' + diaFim + '/' + mesIniStr + ')' + sufixoAno,
+    '783 (' + diaIniStr + '-' + diaFimStr + '/' + mesIniStr + ')' + sufixoAno,
+  ];
+  
+  Logger.log('Tentando encontrar por nome direto:');
+  
+  // Tenta encontrar por nome direto (MUITO RÁPIDO!)
+  for (let i = 0; i < tentativas.length; i++) {
+    Logger.log('  Tentativa ' + (i+1) + ': "' + tentativas[i] + '"');
+    const sheet = spreadsheet.getSheetByName(tentativas[i]);
+    if (sheet) {
+      Logger.log('✅ ENCONTRADA! Aba: ' + tentativas[i]);
+      return sheet;
+    }
+  }
+  
+  Logger.log('Nome direto não encontrado, fazendo busca filtrada...');
+  
+  // ========== FALLBACK: BUSCA FILTRADA ==========
+  const sheets = spreadsheet.getSheets();
+  
+  // Filtra: só abas que contêm "783", não são modelo, e têm o sufixo certo
   for (let i = 0; i < sheets.length; i++) {
     const nomeAba = sheets[i].getName();
     
-    // Verifica se contém "783" mas NÃO é a aba modelo
-    if (nomeAba.indexOf('783') === -1 || nomeAba.toLowerCase().indexOf('modelo') !== -1) {
-      continue;
+    // Filtro rápido
+    if (nomeAba.indexOf('783') === -1) continue;
+    if (nomeAba.toLowerCase().indexOf('modelo') !== -1) continue;
+    
+    // Filtro de sufixo
+    if (sufixoAno) {
+      const nomeAbaTrimmed = nomeAba.trim();
+      if (!nomeAbaTrimmed.endsWith(sufixoAno.trim())) continue;
     }
     
-    // Verifica se termina com o sufixo do ano (A ou B)
-    // Remove espaços extras e verifica o final
-    const nomeAbaTrimmed = nomeAba.trim();
-    const terminaComSufixo = nomeAbaTrimmed.endsWith(' ' + sufixoAno) || 
-                             nomeAbaTrimmed.endsWith(')' + sufixoAno) ||
-                             nomeAbaTrimmed.endsWith(') ' + sufixoAno);
-    
-    if (sufixoAno && !terminaComSufixo) {
-      continue; // Não é do ano correto, pula
-    }
-    
-    // Tenta extrair as datas do nome da aba
-    // Padrão: "783 (08/12 - 12/12) A" - formato DD/MM - DD/MM
-    let match = nomeAba.match(/(\d{1,2})\/(\d{1,2})\s*-\s*(\d{1,2})\/(\d{1,2})/);
-    
+    // Verifica se a data está no período
+    const match = nomeAba.match(/(\d{1,2})\/(\d{1,2})\s*-\s*(\d{1,2})\/(\d{1,2})/);
     if (match) {
       const diaInicio = parseInt(match[1], 10);
       const mesInicio = parseInt(match[2], 10);
-      const diaFim = parseInt(match[3], 10);
-      const mesFim = parseInt(match[4], 10);
+      const diaFimAba = parseInt(match[3], 10);
+      const mesFimAba = parseInt(match[4], 10);
       
-      Logger.log('Aba "' + nomeAba + '": início=' + diaInicio + '/' + mesInicio + ', fim=' + diaFim + '/' + mesFim);
-      
-      // Verifica se a data está no período
-      if (verificarDataNoPeriodo(diaAgendamento, mesAgendamento, diaInicio, mesInicio, diaFim, mesFim)) {
-        Logger.log('✅ Aba encontrada: ' + nomeAba);
-        abaEncontrada = sheets[i];
-        break;
+      if (verificarDataNoPeriodo(diaAgendamento, mesAgendamento, diaInicio, mesInicio, diaFimAba, mesFimAba)) {
+        Logger.log('✅ Aba encontrada por busca: ' + nomeAba);
+        return sheets[i];
       }
     }
   }
   
-  return abaEncontrada;
+  Logger.log('❌ Nenhuma aba encontrada para a data ' + dataStr);
+  return null;
 }
 
 /**

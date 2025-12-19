@@ -10,6 +10,30 @@ let currentStep = 1;
 let horariosCarregados = false; // Flag para saber se já carregou
 
 // ============================================
+// MODAL DE RECESSO (AVISO FIM DE ANO)
+// ============================================
+function verificarModalRecesso() {
+  const hoje = new Date();
+  const inicioRecesso = new Date(2025, 11, 19); // 19 de dezembro de 2025 (mês é 0-indexed)
+  const fimRecesso = new Date(2026, 0, 2);      // 02 de janeiro de 2026
+
+  // Mostra o modal se estiver dentro do período
+  if (hoje >= inicioRecesso && hoje < fimRecesso) {
+    const modal = document.getElementById('modal-recesso');
+    if (modal) {
+      modal.style.display = 'flex';
+    }
+  }
+}
+
+function fecharModalRecesso() {
+  const modal = document.getElementById('modal-recesso');
+  if (modal) {
+    modal.style.display = 'none';
+  }
+}
+
+// ============================================
 // VALIDAÇÃO INICIAL
 // ============================================
 (function () {
@@ -634,6 +658,9 @@ function configurarValidacaoEmTempoReal() {
 // INICIALIZAÇÃO
 // ============================================
 document.addEventListener('DOMContentLoaded', function () {
+  // 🎄 VERIFICA SE DEVE MOSTRAR O MODAL DE RECESSO
+  verificarModalRecesso();
+
   // 🔄 PRÉ-CARREGA OS HORÁRIOS EM BACKGROUND (assim que o site abre)
   preCarregarHorarios();
 

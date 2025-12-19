@@ -13,6 +13,73 @@
 </head>
 
 <body>
+  <!-- MODAL AVISO DE RECESSO -->
+  <div id="modal-recesso" class="modal-overlay" style="display: none;">
+    <div class="modal-recesso-card">
+      <!-- Decoração natalina -->
+      <div class="modal-decoration">
+        <div class="snowflake">❄</div>
+        <div class="snowflake">❄</div>
+        <div class="snowflake">❄</div>
+      </div>
+      
+      <div class="modal-recesso-header">
+        <div class="modal-recesso-badge">
+          <span>🎄</span> Recesso de Fim de Ano
+        </div>
+        <h2>Informativo Importante</h2>
+      </div>
+      
+      <div class="modal-recesso-body">
+        <!-- Card principal -->
+        <div class="recesso-card-main">
+          <div class="recesso-icon-circle">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+              <line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/>
+              <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+          </div>
+          <div class="recesso-card-main-text">
+            <span class="recesso-dates">22/12 a 02/01</span>
+            <p>Sem agendamentos online</p>
+            <p class="recesso-highlight">Atendimento por demanda espontânea<br><strong>07h às 16h</strong></p>
+          </div>
+        </div>
+        
+        <!-- Dias fechados -->
+        <div class="recesso-closed">
+          <div class="recesso-closed-title">
+            <span class="recesso-closed-icon">🚫</span>
+            Centro de Saúde fechado:
+          </div>
+          <div class="recesso-closed-dates">
+            <span>24/12</span>
+            <span>25/12</span>
+            <span>31/12</span>
+            <span>01/01</span>
+          </div>
+        </div>
+        
+        <!-- Onde ir -->
+        <div class="recesso-emergency">
+          <p>Nesses dias, procure:</p>
+          <div class="recesso-emergency-options">
+            <span>🏥 UPA Sul</span>
+            <span>🏥 HU</span>
+            <span>🏥 Celso Ramos</span>
+          </div>
+          <p class="recesso-samu">Emergências: <strong>SAMU 192</strong></p>
+        </div>
+      </div>
+      
+      <button type="button" class="modal-recesso-btn" onclick="fecharModalRecesso()">
+        Entendi, obrigado!
+      </button>
+    </div>
+  </div>
+
   <div class="page-wrapper">
     <!-- Background decorativo -->
     <div class="bg-pattern" aria-hidden="true"></div>
