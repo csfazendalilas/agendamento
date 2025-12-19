@@ -33,6 +33,14 @@ function fecharModalRecesso() {
   }
 }
 
+// Fecha o modal ao clicar em qualquer lugar
+document.addEventListener('click', function(e) {
+  const modal = document.getElementById('modal-recesso');
+  if (modal && modal.style.display !== 'none' && modal.contains(e.target)) {
+    fecharModalRecesso();
+  }
+});
+
 // ============================================
 // VALIDAÇÃO INICIAL
 // ============================================
