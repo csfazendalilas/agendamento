@@ -1313,7 +1313,8 @@ select.error:focus {
     0 0 100px rgba(99, 179, 237, 0.15);
   max-width: 420px;
   width: 100%;
-  overflow: hidden;
+  max-height: 90vh;
+  overflow-y: auto;
   animation: modalSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
   cursor: pointer;
@@ -1593,5 +1594,111 @@ select.error:focus {
 
 .modal-recesso-btn:active {
   transform: translateY(0);
+}
+
+/* Modal responsivo para telas pequenas */
+@media (max-height: 700px) {
+  .modal-recesso-header {
+    padding: 20px 20px 16px;
+  }
+  
+  .modal-recesso-badge {
+    padding: 6px 12px;
+    font-size: 12px;
+    margin-bottom: 8px;
+  }
+  
+  .modal-recesso-header h2 {
+    font-size: 18px;
+  }
+  
+  .modal-recesso-body {
+    padding: 0 16px 16px;
+    gap: 12px;
+  }
+  
+  .recesso-card-main {
+    padding: 14px;
+    gap: 12px;
+  }
+  
+  .recesso-icon-circle {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+  }
+  
+  .recesso-icon-circle svg {
+    width: 22px;
+    height: 22px;
+  }
+  
+  .recesso-dates {
+    font-size: 16px;
+  }
+  
+  .recesso-card-main-text p {
+    font-size: 12px;
+  }
+  
+  .recesso-highlight {
+    padding: 6px 10px;
+    font-size: 12px !important;
+  }
+  
+  .recesso-closed {
+    padding: 10px 12px;
+  }
+  
+  .recesso-closed-title {
+    font-size: 12px;
+    margin-bottom: 8px;
+  }
+  
+  .recesso-closed-dates span {
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+  
+  .recesso-emergency {
+    padding: 12px;
+  }
+  
+  .recesso-emergency p,
+  .recesso-emergency-options span {
+    font-size: 12px;
+  }
+  
+  .recesso-alo-saude {
+    padding: 10px 12px;
+    margin: 8px 0;
+  }
+  
+  .recesso-alo-saude span {
+    font-size: 16px;
+  }
+  
+  .recesso-alo-saude strong {
+    font-size: 11px;
+  }
+  
+  .recesso-alo-saude a {
+    font-size: 14px;
+  }
+  
+  .modal-recesso-btn {
+    padding: 12px;
+    font-size: 14px;
+    margin: 0 16px 16px;
+    width: calc(100% - 32px);
+  }
+  
+  .modal-decoration {
+    height: 80px;
+  }
+  
+  .snowflake {
+    font-size: 16px;
+  }
 }
 
