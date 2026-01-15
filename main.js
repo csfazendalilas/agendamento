@@ -695,7 +695,10 @@ document.addEventListener('DOMContentLoaded', function () {
   // Event listeners para botões da intro
   const btnAgendar = document.querySelectorAll('[data-action="agendar"]');
   btnAgendar.forEach(btn => {
-    btn.addEventListener('click', () => mostrarFormulario(true));
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      mostrarFormulario(true);
+    });
   });
 
   const btnVoltar = document.querySelectorAll('[data-action="voltar"]');

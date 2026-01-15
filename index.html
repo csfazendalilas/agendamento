@@ -125,63 +125,70 @@
 
         <div class="intro-grid">
           <!-- Renovação de medicamentos -->
-          <div class="intro-card-item">
+          <a href="https://forms.gle/hSNekJWonoEqcntFA" target="_blank" class="intro-card-item intro-card-clickable">
             <h3>
               <span class="icon">💊</span>
               Renovação de medicamentos
             </h3>
             <p>Solicite a renovação das suas receitas de uso contínuo.</p>
-            <a href="https://forms.gle/hSNekJWonoEqcntFA" target="_blank" class="intro-link">
+            <span class="intro-link">
               Acessar formulário
-            </a>
-          </div>
+            </span>
+          </a>
 
-          <!-- Agendamentos específicos -->
-          <div class="intro-card-item">
+          <!-- Gestantes, Rotina de Crianças até 2 anos -->
+          <a href="https://csfazendalilas.github.io/pueripre/" target="_blank" class="intro-card-item intro-card-clickable">
             <h3>
               <span class="icon">📝</span>
-              Agendamentos específicos
+              Gestantes, Rotina de Crianças até 2 anos
             </h3>
             <ul>
-              <li>Gestantes</li>
-              <li>Rotina de Crianças até 2 anos</li>
+              <li>Pré-natal</li>
+              <li>Puericultura</li>
+            </ul>
+            <span class="intro-link">
+              Acessar formulário
+            </span>
+          </a>
+
+          <!-- Preventivo e DIU -->
+          <a href="https://forms.gle/9Kkq8irMLtpYLUUM9" target="_blank" class="intro-card-item intro-card-clickable">
+            <h3>
+              <span class="icon">📝</span>
+              Preventivo e DIU
+            </h3>
+            <ul>
               <li>Preventivo</li>
               <li>DIU</li>
             </ul>
-            <a href="https://forms.gle/9Kkq8irMLtpYLUUM9" target="_blank" class="intro-link">
+            <span class="intro-link">
               Acessar formulário
-            </a>
-          </div>
+            </span>
+          </a>
 
           <!-- Outras consultas -->
-          <div class="intro-card-item highlight">
+          <div class="intro-card-item highlight intro-card-clickable" data-action="agendar">
             <h3>
               <span class="icon">📅</span>
               Outras consultas
             </h3>
             <p>Agende consultas que não sejam de agendamento específico ou urgentes através do nosso formulário online.</p>
-            <button type="button" class="btn btn-primary mt-lg" data-action="agendar">
-              <span class="btn-text">Agendar consulta</span>
-              <span class="btn-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                  <polyline points="12 5 19 12 12 19" />
-                </svg>
-              </span>
-            </button>
+            <span class="intro-link">
+              Agendar consulta
+            </span>
           </div>
 
           <!-- Alô Saúde Floripa -->
-          <div class="intro-card-item">
+          <a href="tel:08003333233" class="intro-card-item intro-card-clickable">
             <h3>
               <span class="icon">📞</span>
               Alô Saúde Floripa
             </h3>
             <p>Orientação médica 24h por telefone, vídeo ou chat. Gratuito e ilimitado. <strong>Ligue antes de ir ao posto ou UPA!</strong></p>
-            <a href="tel:08003333233" class="intro-link" style="font-size: 1.1em; font-weight: 600;">
+            <span class="intro-link" style="font-size: 1.1em; font-weight: 600;">
               📱 0800 333 3233
-            </a>
-          </div>
+            </span>
+          </a>
 
           <!-- Fila de espera -->
           <div class="intro-card-item">
@@ -190,12 +197,18 @@
               Fila de espera
             </h3>
             <p>Acompanhe sua posição na fila de espera de requisições, encaminhamentos e exames.</p>
-            <a href="https://florianopolis.celk.com.br/lista-publica" target="_blank" class="intro-link">
-              🏛️ Fila Municipal
-            </a>
-            <a href="https://listadeespera.saude.sc.gov.br/" target="_blank" class="intro-link">
-              🏢 Fila Estadual
-            </a>
+            <div class="fila-buttons">
+              <a href="https://florianopolis.celk.com.br/lista-publica" target="_blank" class="fila-btn fila-btn-municipal">
+                <span class="fila-btn-icon">🏛️</span>
+                <span class="fila-btn-text">Fila Municipal</span>
+                <span class="fila-btn-arrow">→</span>
+              </a>
+              <a href="https://listadeespera.saude.sc.gov.br/" target="_blank" class="fila-btn fila-btn-estadual">
+                <span class="fila-btn-icon">🏢</span>
+                <span class="fila-btn-text">Fila Estadual</span>
+                <span class="fila-btn-arrow">→</span>
+              </a>
+            </div>
           </div>
         </div>
 
@@ -211,13 +224,17 @@
             Ligue SAMU 192 ou procure a UPA Sul, HU ou Hospital Celso Ramos.
           </div>
 
-          <div class="alert alert-success">
+          <a href="https://wa.me/554892187877" target="_blank" class="alert alert-success alert-clickable">
             <strong>🦷 Atendimento odontológico</strong>
-            Para dentista, procure o Centro de Saúde do Campeche a partir das 7h (Dra. Júlia).
-            Atendimentos por ordem de chegada (3 a 4 fichas diárias).<br>
-            Crianças até 10 anos, gestantes e idosos (+60) agendam via WhatsApp:
-            <a href="https://wa.me/554892187877" target="_blank">48 9218-7877</a>
-          </div>
+            <p>
+              <strong>Presencial:</strong> Centro de Saúde do Campeche a partir das 7h (Dra. Júlia).<br>
+              Atendimentos por ordem de chegada (3 a 4 fichas diárias).
+            </p>
+            <p>
+              <strong>Agendamento via WhatsApp:</strong> Crianças até 10 anos, gestantes e idosos (+60)<br>
+              <span class="alert-link">📱 48 9218-7877 →</span>
+            </p>
+          </a>
         </div>
       </div>
 

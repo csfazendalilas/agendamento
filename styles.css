@@ -380,12 +380,19 @@ body {
   border-radius: var(--radius-lg);
   padding: var(--spacing-lg);
   transition: var(--transition-base);
+  display: block;
+  text-decoration: none;
+  color: inherit;
 }
 
 .intro-card-item:hover {
   border-color: var(--color-gray-300);
   box-shadow: var(--shadow-md);
   transform: translateY(-2px);
+}
+
+.intro-card-clickable {
+  cursor: pointer;
 }
 
 .intro-card-item.highlight {
@@ -473,6 +480,7 @@ body {
   color: var(--color-primary);
   text-decoration: none;
   transition: var(--transition-base);
+  pointer-events: none;
 }
 
 .intro-link::after {
@@ -481,12 +489,85 @@ body {
   transition: var(--transition-base);
 }
 
-.intro-link:hover {
+.intro-card-item:hover .intro-link {
   color: var(--color-primary-dark);
 }
 
-.intro-link:hover::after {
+.intro-card-item:hover .intro-link::after {
   transform: translateX(4px);
+}
+
+/* Botões de Fila de Espera */
+.fila-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-md);
+}
+
+.fila-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md) var(--spacing-lg);
+  background: var(--color-white);
+  border: 1.5px solid var(--color-gray-200);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  color: var(--color-gray-700);
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+  transition: var(--transition-base);
+  cursor: pointer;
+}
+
+.fila-btn:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-ghost);
+  color: var(--color-primary-dark);
+  transform: translateX(4px);
+  box-shadow: var(--shadow-sm);
+}
+
+.fila-btn-icon {
+  font-size: var(--font-size-lg);
+  flex-shrink: 0;
+}
+
+.fila-btn-text {
+  flex: 1;
+  text-align: left;
+}
+
+.fila-btn-arrow {
+  color: var(--color-primary);
+  font-size: var(--font-size-base);
+  transition: var(--transition-base);
+  flex-shrink: 0;
+}
+
+.fila-btn:hover .fila-btn-arrow {
+  transform: translateX(4px);
+}
+
+.fila-btn-municipal:hover {
+  border-color: var(--color-info);
+  background: var(--color-info-light);
+  color: var(--color-info);
+}
+
+.fila-btn-municipal:hover .fila-btn-arrow {
+  color: var(--color-info);
+}
+
+.fila-btn-estadual:hover {
+  border-color: var(--color-success);
+  background: var(--color-success-light);
+  color: var(--color-success);
+}
+
+.fila-btn-estadual:hover .fila-btn-arrow {
+  color: var(--color-success);
 }
 
 /* Alertas na intro */
@@ -503,6 +584,27 @@ body {
   font-size: var(--font-size-sm);
   line-height: 1.6;
   box-shadow: var(--shadow-sm);
+}
+
+.alert-clickable {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition: var(--transition-base);
+}
+
+.alert-clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.alert-clickable p {
+  margin: var(--spacing-sm) 0 0 0;
+}
+
+.alert-clickable p:first-of-type {
+  margin-top: var(--spacing-xs);
 }
 
 .alert strong {
@@ -543,6 +645,19 @@ body {
 .alert a {
   color: inherit;
   font-weight: 600;
+}
+
+.alert-link {
+  display: inline-block;
+  margin-top: var(--spacing-xs);
+  color: var(--color-success);
+  font-weight: 600;
+  transition: var(--transition-base);
+}
+
+.alert-clickable:hover .alert-link {
+  color: var(--color-success);
+  transform: translateX(4px);
 }
 
 /* ============================================
