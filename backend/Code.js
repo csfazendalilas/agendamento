@@ -6,6 +6,9 @@ const SHEET_AGENDAMENTOS = 'Agendamentos';
 // Planilha geral do posto de saúde (onde você realmente atende)
 const SHEET_POSTO_ID = '1fpwmi85pLQWPQrKJiawZOrSOip8MQlsfmyUpIU1wGlk';
 
+// Planilha de triagem (pré-natal/puericultura)
+const SHEET_TRIAGEM_ID = '1Ih-PMnTW698l-pqJks69qBn0QOQXSH3ZfcJKY6YhvOA';
+
 // ====== FUNÇÃO DE TESTE - Execute para debugar ======
 function testarBuscaReservado() {
   // ALTERE ESTES VALORES PARA TESTAR:
@@ -259,6 +262,13 @@ function bookSlot(bookingData) {
     Logger.log('Erro ao registrar na planilha do posto: ' + erroPosto.message);
   }
 
+  // ====== REGISTRA NA PLANILHA DE TRIAGEM (PRÉ-NATAL/PUERICULTURA) ======
+  try {
+    registrarTriagem(dataFormatada, horaFormatada, bookingData, 'Médico');
+  } catch (erroTriagem) {
+    Logger.log('[MED] Erro ao registrar na planilha de triagem: ' + erroTriagem.message);
+  }
+
   return {
     sucesso: true,
     mensagem: 'Agendamento realizado com sucesso!',
@@ -490,4 +500,71 @@ function encontrarAbaEquipe783(spreadsheet) {
   }
   
   return null;
+}
+
+// ====== REGISTRAR NA PLANILHA DE TRIAGEM ======
+/**
+ * Registra os dados da triagem (pré-natal/puericultura) em planilha separada
+ */
+function registrarTriagem(dataConsulta, horaConsulta, dados, profissional) {
+  try {
+    const sheetTriagem = SpreadsheetApp.openById(SHEET_TRIAGEM_ID);
+    let aba = sheetTriagem.getSheetByName('Triagem');
+    
+    // Se a aba não existir, cria com cabeçalho
+    if (!aba) {
+      aba = sheetTriagem.insertSheet('Triagem');
+      aba.appendRow([
+        'Timestamp',
+        'Tipo',
+        'Nome',
+        'Data Nascimento',
+        'Motivo',
+        'Data Consulta',
+        'Hora Consulta',
+        'Profissional',
+        // Pré-natal
+        'Última Consulta',
+        'Data Última Consulta',
+        'Semanas Gestacionais',
+        'Número Semanas',
+        'Último Profissional (PN)',
+        // Puericultura
+        'Meses Criança',
+        'Última Consulta (meses)',
+        'Último Profissional (PC)'
+      ]);
+    }
+    
+    const triagem = dados.triagem || {};
+    
+    // Monta a linha com todos os dados
+    const linha = [
+      new Date(),                                    // A: Timestamp
+      triagem.tipo || '',                            // B: Tipo (pre-natal / puericultura)
+      dados.nome || '',                              // C: Nome
+      dados.dataNascimento || '',                    // D: Data Nascimento
+      dados.observacoes || '',                       // E: Motivo
+      dataConsulta,                                  // F: Data Consulta
+      horaConsulta,                                  // G: Hora Consulta
+      profissional,                                  // H: Profissional (Enfermagem/Médico)
+      // Pré-natal
+      triagem.ultimaConsulta || '',                  // I: Última Consulta (data/primeira)
+      triagem.dataUltimaConsulta || '',              // J: Data Última Consulta
+      triagem.semanasGestacao || '',                 // K: Semanas Gestacionais (semanas/nao_lembro)
+      triagem.numeroSemanas || '',                   // L: Número Semanas
+      triagem.tipo === 'pre-natal' ? triagem.ultimoProfissional : '', // M: Último Profissional (PN)
+      // Puericultura
+      triagem.mesesCrianca || '',                    // N: Meses Criança
+      triagem.ultimaConsultaMeses || '',             // O: Última Consulta (meses)
+      triagem.tipo === 'puericultura' ? triagem.ultimoProfissional : '' // P: Último Profissional (PC)
+    ];
+    
+    aba.appendRow(linha);
+    Logger.log('[TRIAGEM] Dados registrados com sucesso');
+    
+  } catch (error) {
+    Logger.log('[TRIAGEM] Erro ao registrar: ' + error.message);
+    throw error;
+  }
 }
