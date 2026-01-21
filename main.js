@@ -267,7 +267,11 @@ async function carregarHorarios() {
         ? diaSemanaLabel + ', ' + slot.data
         : slot.data;
 
-      option.text = dataComDia + ' às ' + slot.hora;
+      // Define o tipo de profissional baseado na origem (F=médico, O=enfermeira, vazio=médico)
+      const origem = (slot.origem || 'F').toUpperCase();
+      const tipoProfissional = origem === 'O' ? '(enfermeira)' : '(médico)';
+
+      option.text = dataComDia + ' às ' + slot.hora + ' ' + tipoProfissional;
       select.appendChild(option);
     });
 
@@ -435,6 +439,11 @@ function construirResumoAgendamento(slot, nome, telefone, dataNascimento, observ
   const diaSemana = slot.diaSemana ? slot.diaSemana.replace('-feira', '') : '';
   const dataFormatada = diaSemana ? `${diaSemana}, ${slot.data}` : slot.data;
 
+  // Define o tipo de profissional baseado na origem (F=médico, O=enfermeira, vazio=médico)
+  const origem = (slot.origem || 'F').toUpperCase();
+  const tipoProfissional = origem === 'O' ? 'Enfermeira' : 'Médico';
+  const iconeProfissional = origem === 'O' ? '👩‍⚕️' : '👨‍⚕️';
+
   // Escape user-provided data to prevent XSS
   const nomeEscaped = escapeHtml(nome);
   const telefoneEscaped = escapeHtml(telefone);
@@ -458,6 +467,10 @@ function construirResumoAgendamento(slot, nome, telefone, dataNascimento, observ
       <li>
         <strong>Horário</strong>
         <span class="resumo-chip">🕐 ${slot.hora}</span>
+      </li>
+      <li>
+        <strong>Profissional</strong>
+        <span class="resumo-chip">${iconeProfissional} ${tipoProfissional}</span>
       </li>
       <li>
         <strong>Paciente</strong>
@@ -490,8 +503,10 @@ function construirResumoAgendamento(slot, nome, telefone, dataNascimento, observ
 function construirUrlWhatsApp(slot, nome) {
   const diaSemana = slot.diaSemana ? slot.diaSemana.replace('-feira', '') : '';
   const dataFormatada = diaSemana ? `${diaSemana}, ${slot.data}` : slot.data;
+  const origem = (slot.origem || 'F').toUpperCase();
+  const tipoProfissional = origem === 'O' ? 'enfermeira' : 'médico';
 
-  const texto = `Olá! Aqui é ${nome}. Acabei de solicitar um agendamento para ${dataFormatada} às ${slot.hora}. Poderia confirmar, por favor?`;
+  const texto = `Olá! Aqui é ${nome}. Acabei de solicitar um agendamento com ${tipoProfissional} para ${dataFormatada} às ${slot.hora}. Poderia confirmar, por favor?`;
 
   return `https://wa.me/${WHATSAPP_DESTINO}?text=${encodeURIComponent(texto)}`;
 }

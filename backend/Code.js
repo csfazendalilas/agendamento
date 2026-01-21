@@ -36,33 +36,30 @@ function testarBuscaReservado() {
     if (sheetPosto) {
       Logger.log('✅ Aba encontrada: ' + sheetPosto.getName());
       
-      // Busca a linha reservada
-      const linha = encontrarLinhaReservada(sheetPosto, dataParaTestar, horaParaTestar);
+      // Busca na ESTRUTURA 1 (coluna F)
+      Logger.log('--- Buscando na estrutura 1 (coluna F) ---');
+      const linhaF = encontrarLinhaReservada(sheetPosto, dataParaTestar, horaParaTestar, 6, 5);
       
-      if (linha > 0) {
-        Logger.log('✅ Linha com reservado encontrada: ' + linha);
-        
-        // Mostra o conteúdo da linha
-        const dadosLinha = sheetPosto.getRange(linha, 1, 1, 8).getDisplayValues()[0];
-        Logger.log('Conteúdo da linha:');
-        Logger.log('  A: ' + dadosLinha[0]);
-        Logger.log('  B: ' + dadosLinha[1]);
-        Logger.log('  C (Data): ' + dadosLinha[2]);
-        Logger.log('  D: ' + dadosLinha[3]);
-        Logger.log('  E (Hora): ' + dadosLinha[4]);
-        Logger.log('  F (Nome): ' + dadosLinha[5]);
-        Logger.log('  G (DN): ' + dadosLinha[6]);
-        Logger.log('  H (Motivo): ' + dadosLinha[7]);
+      if (linhaF > 0) {
+        Logger.log('✅ Encontrado na coluna F, linha: ' + linhaF);
+        const dadosLinha = sheetPosto.getRange(linhaF, 1, 1, 8).getDisplayValues()[0];
+        Logger.log('  C (Data): ' + dadosLinha[2] + ' | E (Hora): ' + dadosLinha[4] + ' | F (Nome): ' + dadosLinha[5]);
       } else {
-        Logger.log('❌ Linha com "reservado" NÃO encontrada');
-        
-        // Mostra algumas linhas para debug
-        Logger.log('Primeiras 20 linhas da aba:');
-        const dados = sheetPosto.getRange(1, 1, Math.min(20, sheetPosto.getLastRow()), 8).getDisplayValues();
-        dados.forEach((row, i) => {
-          Logger.log('Linha ' + (i+1) + ': C="' + row[2] + '" E="' + row[4] + '" F="' + row[5] + '"');
-        });
+        Logger.log('❌ Não encontrado na coluna F');
       }
+      
+      // Busca na ESTRUTURA 2 (coluna O)
+      Logger.log('--- Buscando na estrutura 2 (coluna O) ---');
+      const linhaO = encontrarLinhaReservada(sheetPosto, dataParaTestar, horaParaTestar, 15, 14);
+      
+      if (linhaO > 0) {
+        Logger.log('✅ Encontrado na coluna O, linha: ' + linhaO);
+        const dadosLinha = sheetPosto.getRange(linhaO, 13, 1, 5).getDisplayValues()[0];
+        Logger.log('  M (App): ' + dadosLinha[0] + ' | N (Hora): ' + dadosLinha[1] + ' | O (Nome): ' + dadosLinha[2] + ' | P (DN): ' + dadosLinha[3] + ' | Q (Motivo): ' + dadosLinha[4]);
+      } else {
+        Logger.log('❌ Não encontrado na coluna O');
+      }
+      
     } else {
       Logger.log('❌ Aba 783 NÃO encontrada para a data ' + dataParaTestar);
     }
@@ -113,6 +110,7 @@ function doPost(e) {
 
 /**
  * Lê a aba Horarios e devolve só horários LIVRES já formatados
+ * Agora inclui a coluna Origem (D) para saber se veio de F ou O
  */
 function getAvailableSlots() {
   const ss = SpreadsheetApp.openById(SHEET_ID);
@@ -127,8 +125,8 @@ function getAvailableSlots() {
     return [];
   }
 
-  // Linha 2 até a última, colunas A (Data), B (Hora), C (Status)
-  const range = sheet.getRange(2, 1, lastRow - 1, 3);
+  // Linha 2 até a última, colunas A (Data), B (Hora), C (Status), D (Origem)
+  const range = sheet.getRange(2, 1, lastRow - 1, 4);
   const values = range.getValues();
 
   const slots = [];
@@ -137,6 +135,7 @@ function getAvailableSlots() {
     const dataCell = row[0];
     const horaCell = row[1];
     const status = (row[2] || '').toString().toUpperCase().trim();
+    const origem = (row[3] || 'F').toString().toUpperCase().trim(); // Coluna D - Default F para retrocompatibilidade
 
     if (status === 'LIVRE') {
       const rowIndex = index + 2;
@@ -170,7 +169,8 @@ function getAvailableSlots() {
         rowIndex: rowIndex,
         data: dataStr,
         hora: horaStr,
-        diaSemana: diaSemana
+        diaSemana: diaSemana,
+        origem: origem  // 'F' ou 'O' - indica qual estrutura de colunas usar
       });
     }
   });
@@ -180,6 +180,7 @@ function getAvailableSlots() {
 
 /**
  * Registra o agendamento e EXCLUI a linha do horário
+ * Usa a coluna Origem para saber onde preencher os dados na planilha do posto
  */
 function bookSlot(bookingData) {
   const ss = SpreadsheetApp.openById(SHEET_ID);
@@ -192,8 +193,10 @@ function bookSlot(bookingData) {
   const dataNascimento = bookingData.dataNascimento || '';
   const observacoes = bookingData.observacoes || '';
 
-  const row = sheetHor.getRange(rowIndex, 1, 1, 3).getValues()[0];
+  // Agora lê 4 colunas: Data, Hora, Status, Origem
+  const row = sheetHor.getRange(rowIndex, 1, 1, 4).getValues()[0];
   const statusAtual = (row[2] || '').toString().toUpperCase().trim();
+  const origem = (row[3] || 'F').toString().toUpperCase().trim(); // Default F para retrocompatibilidade
 
   if (statusAtual !== 'LIVRE') {
     throw new Error('Esse horário acabou de ser ocupado. Por favor, escolha outro.');
@@ -202,6 +205,8 @@ function bookSlot(bookingData) {
   // Guarda os dados ANTES de excluir a linha
   const data = row[0];
   const hora = row[1];
+
+  Logger.log('Agendando horário com origem: ' + origem);
 
   // EXCLUI a linha do horário (em vez de marcar como OCUPADO)
   sheetHor.deleteRow(rowIndex);
@@ -240,19 +245,41 @@ function bookSlot(bookingData) {
     const sheetPosto = encontrarAbaEquipe783PorData(ssPosto, dataFormatada);
     
     if (sheetPosto) {
-      // Procura a linha que tem "reservado" com a mesma data e horário
-      const linhaEncontrada = encontrarLinhaReservada(sheetPosto, dataFormatada, horaFormatada);
-      
-      if (linhaEncontrada > 0) {
-        // Substitui "reservado" pelos dados do paciente
-        // D = "app", F = Nome, G = DN, H = Motivo
-        sheetPosto.getRange(linhaEncontrada, 4).setValue('app');            // Coluna D - Marcado pelo app
-        sheetPosto.getRange(linhaEncontrada, 6).setValue(nome);             // Coluna F - Nome
-        sheetPosto.getRange(linhaEncontrada, 7).setValue(dataNascimento);   // Coluna G - Data de Nascimento
-        sheetPosto.getRange(linhaEncontrada, 8).setValue(observacoes);      // Coluna H - Motivo
-        Logger.log('Dados preenchidos na linha ' + linhaEncontrada + ' da planilha do posto (marcado como app)');
+      // Usa a ORIGEM para saber qual estrutura preencher
+      if (origem === 'F') {
+        // ====== ESTRUTURA 1: Coluna F (nome/reservado) ======
+        // Procura a linha que tem "reservado" na coluna F com a mesma data e horário (coluna E)
+        const linhaF = encontrarLinhaReservada(sheetPosto, dataFormatada, horaFormatada, 6, 5); // F=6, E=5
+        
+        if (linhaF > 0) {
+          // Substitui "reservado" pelos dados do paciente
+          // D = "app", F = Nome, G = DN, H = Motivo
+          sheetPosto.getRange(linhaF, 4).setValue('app');            // Coluna D - Marcado pelo app
+          sheetPosto.getRange(linhaF, 6).setValue(nome);             // Coluna F - Nome
+          sheetPosto.getRange(linhaF, 7).setValue(dataNascimento);   // Coluna G - Data de Nascimento
+          sheetPosto.getRange(linhaF, 8).setValue(observacoes);      // Coluna H - Motivo
+          Logger.log('✅ Dados preenchidos na linha ' + linhaF + ' (estrutura F)');
+        } else {
+          Logger.log('❌ Linha com "reservado" na coluna F não encontrada');
+        }
+      } else if (origem === 'O') {
+        // ====== ESTRUTURA 2: Coluna O (nome/reservado) ======
+        // Procura a linha que tem "reservado" na coluna O com a mesma data e horário (coluna N)
+        const linhaO = encontrarLinhaReservada(sheetPosto, dataFormatada, horaFormatada, 15, 14); // O=15, N=14
+        
+        if (linhaO > 0) {
+          // Substitui "reservado" pelos dados do paciente
+          // M = "app", N = Horário (já preenchido), O = Nome, P = DN, Q = Motivo
+          sheetPosto.getRange(linhaO, 13).setValue('app');           // Coluna M - Marcado pelo app
+          sheetPosto.getRange(linhaO, 15).setValue(nome);            // Coluna O - Nome
+          sheetPosto.getRange(linhaO, 16).setValue(dataNascimento);  // Coluna P - Data de Nascimento
+          sheetPosto.getRange(linhaO, 17).setValue(observacoes);     // Coluna Q - Motivo
+          Logger.log('✅ Dados preenchidos na linha ' + linhaO + ' (estrutura O)');
+        } else {
+          Logger.log('❌ Linha com "reservado" na coluna O não encontrada');
+        }
       } else {
-        Logger.log('Linha com "reservado" não encontrada para data ' + dataFormatada + ' e hora ' + horaFormatada);
+        Logger.log('⚠️ Origem desconhecida: ' + origem + '. Não preencheu na planilha do posto.');
       }
     } else {
       Logger.log('Aba da equipe 783 não encontrada para a data ' + dataFormatada);
@@ -365,10 +392,11 @@ function encontrarAbaEquipe783PorData(spreadsheet, dataStr) {
     if (nomeAba.indexOf('783') === -1) continue;
     if (nomeAba.toLowerCase().indexOf('modelo') !== -1) continue;
     
-    // Filtro de sufixo
+    // Filtro de sufixo - deve terminar com " B" ou " A" (COM espaço antes)
+    // sufixoAno já contém o espaço: " A" ou " B"
     if (sufixoAno) {
       const nomeAbaTrimmed = nomeAba.trim();
-      if (!nomeAbaTrimmed.endsWith(sufixoAno.trim())) continue;
+      if (!nomeAbaTrimmed.endsWith(sufixoAno)) continue;
     }
     
     // Verifica se a data está no período
@@ -411,15 +439,25 @@ function verificarDataNoPeriodo(dia, mes, diaInicio, mesInicio, diaFim, mesFim) 
 }
 
 /**
- * Encontra a linha que tem "reservado" na coluna F com a data e horário correspondentes
- * Coluna C = Data (pode estar mesclada), Coluna E = Horário, Coluna F = Nome (onde está "reservado")
+ * Encontra a linha que tem "reservado" na coluna especificada com a data e horário correspondentes
+ * 
+ * @param {Sheet} sheet - A aba da planilha
+ * @param {string} dataStr - Data no formato DD/MM/YYYY
+ * @param {string} horaStr - Hora no formato HH:mm
+ * @param {number} colunaReservado - Número da coluna onde está "reservado" (F=6, O=15)
+ * @param {number} colunaHorario - Número da coluna do horário (E=5, N=14)
+ * @returns {number} Número da linha encontrada ou -1 se não encontrar
  */
-function encontrarLinhaReservada(sheet, dataStr, horaStr) {
+function encontrarLinhaReservada(sheet, dataStr, horaStr, colunaReservado, colunaHorario) {
+  // Valores padrão para retrocompatibilidade (estrutura original: F e E)
+  colunaReservado = colunaReservado || 6;  // Coluna F
+  colunaHorario = colunaHorario || 5;      // Coluna E
+  
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return -1;
   
-  // Lê todas as colunas
-  const dados = sheet.getRange(1, 1, lastRow, 8).getDisplayValues();
+  // Lê até a coluna Q (17) para cobrir ambas estruturas
+  const dados = sheet.getRange(1, 1, lastRow, 17).getDisplayValues();
   
   // Extrai dia e mês da data do agendamento (formato DD/MM/YYYY)
   const partesData = dataStr.split('/');
@@ -429,15 +467,21 @@ function encontrarLinhaReservada(sheet, dataStr, horaStr) {
   // Normaliza a hora (remove zero à esquerda se houver)
   const horaAgendamento = horaStr.replace(/^0/, '');
   
-  Logger.log('Buscando: dia=' + diaAgendamento + ', mês=' + mesAgendamento + ', hora=' + horaAgendamento);
+  const nomeColuna = colunaReservado === 6 ? 'F' : 'O';
+  Logger.log('Buscando "reservado" na coluna ' + nomeColuna + ': dia=' + diaAgendamento + ', mês=' + mesAgendamento + ', hora=' + horaAgendamento);
   
   // Guarda a última data encontrada (para lidar com células mescladas)
   let ultimaDataEncontrada = '';
   
+  // Índices das colunas (0-based)
+  const idxData = 2;  // Coluna C sempre
+  const idxHora = colunaHorario - 1;
+  const idxReservado = colunaReservado - 1;
+  
   for (let i = 0; i < dados.length; i++) {
-    let dataLinha = (dados[i][2] || '').toString().trim(); // Coluna C (índice 2)
-    const horaLinha = (dados[i][4] || '').toString().trim(); // Coluna E (índice 4)
-    const nomeLinha = (dados[i][5] || '').toString().toLowerCase().trim(); // Coluna F (índice 5)
+    let dataLinha = (dados[i][idxData] || '').toString().trim(); // Coluna C
+    const horaLinha = (dados[i][idxHora] || '').toString().trim(); // Coluna de horário
+    const nomeLinha = (dados[i][idxReservado] || '').toString().toLowerCase().trim(); // Coluna de reservado
     
     // Se a célula da data está vazia, usa a última data encontrada (célula mesclada)
     if (dataLinha) {
@@ -460,10 +504,8 @@ function encontrarLinhaReservada(sheet, dataStr, horaStr) {
     }
     
     // Compara a data
-    // A data na planilha pode estar em vários formatos: "9/12", "09/12", "9/12/2024", etc.
     let dataMatch = false;
     
-    // Extrai dia/mês da data da linha
     const matchData = dataLinha.match(/(\d{1,2})\/(\d{1,2})/);
     if (matchData) {
       const diaLinha = matchData[1].replace(/^0/, '');
@@ -471,16 +513,14 @@ function encontrarLinhaReservada(sheet, dataStr, horaStr) {
       dataMatch = (diaLinha === diaAgendamento && mesLinha === mesAgendamento);
     }
     
-    Logger.log('Linha ' + (i+1) + ': data="' + dataLinha + '", hora="' + horaLinha + '", nome="' + nomeLinha + '", dataMatch=' + dataMatch + ', horaMatch=' + horaMatch);
-    
     if (dataMatch && horaMatch) {
-      Logger.log('ENCONTROU na linha ' + (i + 1));
+      Logger.log('ENCONTROU "reservado" na coluna ' + nomeColuna + ', linha ' + (i + 1));
       return i + 1; // Retorna o número da linha (1-indexed)
     }
   }
   
-  Logger.log('Não encontrou linha com reservado para ' + dataStr + ' ' + horaStr);
-  return -1; // Não encontrou
+  Logger.log('Não encontrou "reservado" na coluna ' + nomeColuna + ' para ' + dataStr + ' ' + horaStr);
+  return -1;
 }
 
 /**
