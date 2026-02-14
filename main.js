@@ -10,6 +10,62 @@ let currentStep = 1;
 let horariosCarregados = false; // Flag para saber se já carregou
 
 // ============================================
+// MODAL DE BLOQUEIO CARNAVAL
+// ============================================
+function verificarModalCarnaval() {
+  const hoje = new Date();
+  
+  const dataLimite = new Date(2026, 1, 18, 14, 0, 0, 0); // 18 de fevereiro de 2026 às 14h (mês é 0-indexed)
+
+  console.log('🎭 Verificando modal carnaval:', {
+    hoje: hoje.toLocaleString('pt-BR'),
+    dataLimite: dataLimite.toLocaleString('pt-BR'),
+    deveMostrar: hoje < dataLimite
+  });
+
+  // Mostra o modal se ainda não passou da data limite (antes das 14h do dia 18/02/2026)
+  if (hoje < dataLimite) {
+    const modal = document.getElementById('modal-carnaval');
+    const pageWrapper = document.querySelector('.page-wrapper');
+    
+    if (modal) {
+      modal.style.display = 'flex';
+      // Garantir que o overlay está visível
+      modal.style.position = 'fixed';
+      modal.style.top = '0';
+      modal.style.left = '0';
+      modal.style.right = '0';
+      modal.style.bottom = '0';
+      modal.style.zIndex = '10000';
+      modal.style.background = 'linear-gradient(135deg, rgba(139, 69, 139, 0.95) 0%, rgba(75, 0, 130, 0.98) 100%)';
+      // Bloquear scroll do body
+      document.body.style.overflow = 'hidden';
+      // Esconder conteúdo da página
+      if (pageWrapper) {
+        pageWrapper.style.display = 'none';
+      }
+      console.log('✅ Modal carnaval exibido');
+    } else {
+      console.error('❌ Modal carnaval não encontrado no DOM');
+    }
+  } else {
+    // Se passou da data, garantir que o modal está escondido
+    const modal = document.getElementById('modal-carnaval');
+    const pageWrapper = document.querySelector('.page-wrapper');
+    
+    if (modal) {
+      modal.style.display = 'none';
+      document.body.style.overflow = '';
+      // Mostrar conteúdo da página
+      if (pageWrapper) {
+        pageWrapper.style.display = '';
+      }
+      console.log('✅ Modal carnaval escondido (data passou)');
+    }
+  }
+}
+
+// ============================================
 // MODAL DE RECESSO (AVISO FIM DE ANO)
 // ============================================
 function verificarModalRecesso() {
@@ -681,6 +737,9 @@ function configurarValidacaoEmTempoReal() {
 // INICIALIZAÇÃO
 // ============================================
 document.addEventListener('DOMContentLoaded', function () {
+  // 🎭 VERIFICA SE DEVE BLOQUEAR O ACESSO (CARNAVAL) - PRIORIDADE MÁXIMA
+  verificarModalCarnaval();
+  
   // 🎄 VERIFICA SE DEVE MOSTRAR O MODAL DE RECESSO
   verificarModalRecesso();
 
