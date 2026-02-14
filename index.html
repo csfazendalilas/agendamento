@@ -29,18 +29,48 @@
           0%, 100% { transform: translateY(-10px) rotate(0deg); opacity: 0.3; }
           50% { transform: translateY(10px) rotate(180deg); opacity: 0.7; }
         }
+        @media (max-width: 480px) {
+          .modal-carnaval-body {
+            padding: 0 0 24px !important;
+          }
+          .modal-carnaval-body {
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+          }
+          .carnaval-poster-container {
+            width: 100vw !important;
+            max-width: 100vw !important;
+            margin: 0 !important;
+            margin-left: calc(50% - 50vw) !important;
+            margin-right: calc(50% - 50vw) !important;
+            border-radius: 0 !important;
+          }
+          .carnaval-poster-img {
+            width: 100% !important;
+            height: auto !important;
+            max-height: none !important;
+            object-fit: contain !important;
+            display: block !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          .carnaval-card-main,
+          .carnaval-info {
+            margin: 0 16px !important;
+          }
+        }
       </style>
       
       <div class="modal-carnaval-header" style="padding: 28px 24px 20px; text-align: center; position: relative; z-index: 2;">
         <div class="modal-carnaval-badge" style="display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #ff1493 0%, #c71585 100%); color: #fff; padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; margin-bottom: 12px;">
           <span>🎭</span> Feriado de Carnaval
         </div>
-        <h2 style="margin: 0; font-size: 22px; font-weight: 700; color: #fff;">Serviço Temporariamente Indisponível</h2>
+        <h2 style="margin: 0; font-size: 22px; font-weight: 700; color: #fff;">Centro de Saúde Fechado</h2>
       </div>
       
       <div class="modal-carnaval-body" style="padding: 0 24px 24px; display: flex; flex-direction: column; gap: 16px; position: relative; z-index: 2;">
         <!-- Imagem do poster -->
-        <div class="carnaval-poster-container" style="width: 100%; border-radius: 16px; overflow: hidden; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2);">
+        <div class="carnaval-poster-container" style="width: calc(100% + 48px); margin: 0 -24px; border-radius: 0; overflow: hidden; background: rgba(255, 255, 255, 0.1); border: none;">
           <img src="carnaval-poster.jpg" alt="Informações sobre funcionamento dos serviços de saúde no feriado de carnaval" class="carnaval-poster-img" style="width: 100%; height: auto; display: block; object-fit: contain;">
         </div>
         
@@ -56,14 +86,14 @@
           </div>
           <div class="carnaval-card-main-text" style="flex: 1;">
             <span class="carnaval-dates" style="display: block; font-size: 20px; font-weight: 700; color: #ff69b4; margin-bottom: 4px;">Quarta-feira, 18/02</span>
-            <p style="margin: 0; color: rgba(255, 255, 255, 0.7); font-size: 14px; line-height: 1.4;">O serviço retornará</p>
+            <p style="margin: 0; color: rgba(255, 255, 255, 0.7); font-size: 14px; line-height: 1.4;">O Centro de Saúde retornará</p>
             <p class="carnaval-highlight" style="margin-top: 8px !important; color: rgba(255, 255, 255, 0.9) !important; background: rgba(255, 255, 255, 0.15); padding: 8px 12px; border-radius: 8px; font-size: 13px !important; margin: 8px 0 0 0;">A partir das <strong style="color: #ff69b4; font-size: 15px;">14h</strong> até as <strong style="color: #ff69b4; font-size: 15px;">17h</strong></p>
           </div>
         </div>
         
         <!-- Informação adicional -->
         <div class="carnaval-info" style="background: rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 16px;">
-          <p style="margin: 0 0 16px; color: rgba(255, 255, 255, 0.8); font-size: 14px; line-height: 1.5; text-align: center;">Durante o feriado de carnaval, o agendamento online estará temporariamente indisponível.</p>
+          <p style="margin: 0 0 16px; color: rgba(255, 255, 255, 0.9); font-size: 15px; line-height: 1.5; text-align: center; font-weight: 600;"><strong>⚠️ O Centro de Saúde estará FECHADO</strong> durante o feriado de carnaval (segunda e terça-feira). O atendimento retornará apenas na quarta-feira, 18/02, a partir das 14h.</p>
           <div class="carnaval-emergency" style="text-align: center; padding-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
             <p style="margin: 0 0 10px; color: rgba(255, 255, 255, 0.7); font-size: 13px;"><strong>Em caso de urgência:</strong></p>
             <div class="carnaval-emergency-options" style="display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px;">

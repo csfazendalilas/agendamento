@@ -1936,3 +1936,395 @@ select.error:focus {
   }
 }
 
+/* ============================================
+   MODAL DE BLOQUEIO CARNAVAL - DESIGN MODERNO
+   ============================================ */
+.modal-carnaval-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(139, 69, 139, 0.95) 0%, rgba(75, 0, 130, 0.98) 100%);
+  backdrop-filter: blur(10px);
+  z-index: 10000; /* Z-index maior que o modal de recesso */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-md);
+  animation: modalFadeIn 0.4s ease-out;
+  cursor: default; /* Não permite fechar clicando */
+  pointer-events: auto; /* Bloqueia interação com conteúdo abaixo */
+}
+
+.modal-carnaval-card {
+  background: linear-gradient(180deg, #8b008b 0%, #4b0082 100%);
+  border-radius: 24px;
+  box-shadow: 
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 25px 50px -12px rgba(0, 0, 0, 0.5),
+    0 0 100px rgba(255, 20, 147, 0.2);
+  max-width: 500px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: modalSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  cursor: default;
+}
+
+/* Decoração de confete */
+.modal-carnaval-decoration {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 120px;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.confetti {
+  position: absolute;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 20px;
+  animation: confettiFloat 3s ease-in-out infinite;
+}
+
+.confetti:nth-child(1) { left: 10%; animation-delay: 0s; }
+.confetti:nth-child(2) { left: 30%; animation-delay: 0.5s; font-size: 16px; }
+.confetti:nth-child(3) { left: 60%; animation-delay: 1s; font-size: 18px; }
+.confetti:nth-child(4) { left: 80%; animation-delay: 1.5s; font-size: 14px; }
+.confetti:nth-child(5) { left: 50%; animation-delay: 2s; font-size: 22px; }
+
+@keyframes confettiFloat {
+  0%, 100% { transform: translateY(-10px) rotate(0deg); opacity: 0.3; }
+  50% { transform: translateY(10px) rotate(180deg); opacity: 0.7; }
+}
+
+/* Header */
+.modal-carnaval-header {
+  padding: 28px 24px 20px;
+  text-align: center;
+  position: relative;
+  z-index: 2;
+}
+
+.modal-carnaval-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #ff1493 0%, #c71585 100%);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 8px rgba(255, 20, 147, 0.4);
+}
+
+.modal-carnaval-header h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.5px;
+}
+
+/* Body */
+.modal-carnaval-body {
+  padding: 0 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: relative;
+  z-index: 2;
+}
+
+/* Container da imagem do poster */
+.carnaval-poster-container {
+  width: 100%;
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.carnaval-poster-img {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: contain;
+}
+
+.carnaval-poster-fallback {
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.carnaval-poster-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.carnaval-poster-placeholder span {
+  font-size: 48px;
+}
+
+.carnaval-poster-placeholder p {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* Card principal de datas */
+.carnaval-card-main {
+  background: linear-gradient(135deg, rgba(255, 20, 147, 0.2) 0%, rgba(199, 21, 133, 0.15) 100%);
+  border: 1px solid rgba(255, 20, 147, 0.3);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.carnaval-icon-circle {
+  width: 56px;
+  height: 56px;
+  background: linear-gradient(135deg, #ff1493 0%, #c71585 100%);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(255, 20, 147, 0.4);
+}
+
+.carnaval-icon-circle svg {
+  width: 28px;
+  height: 28px;
+  color: white;
+}
+
+.carnaval-card-main-text {
+  flex: 1;
+}
+
+.carnaval-dates {
+  display: block;
+  font-size: 20px;
+  font-weight: 700;
+  color: #ff69b4;
+  margin-bottom: 4px;
+}
+
+.carnaval-card-main-text p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.carnaval-highlight {
+  margin-top: 8px !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+  background: rgba(255, 255, 255, 0.15);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px !important;
+}
+
+.carnaval-highlight strong {
+  color: #ff69b4;
+  font-size: 15px;
+}
+
+/* Informação adicional */
+.carnaval-info {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.carnaval-info > p {
+  margin: 0 0 16px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.carnaval-emergency {
+  text-align: center;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.carnaval-emergency p {
+  margin: 0 0 10px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+}
+
+.carnaval-emergency-options {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.carnaval-emergency-options span {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.carnaval-alo-saude {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: linear-gradient(135deg, rgba(72, 187, 120, 0.15) 0%, rgba(56, 161, 105, 0.1) 100%);
+  border: 1px solid rgba(72, 187, 120, 0.3);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin: 12px 0;
+}
+
+.carnaval-alo-saude span {
+  font-size: 20px;
+}
+
+.carnaval-alo-saude div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.carnaval-alo-saude strong {
+  color: #68d391;
+  font-size: 13px;
+}
+
+.carnaval-alo-saude a {
+  color: #9ae6b4;
+  font-size: 16px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.carnaval-alo-saude a:hover {
+  color: #48bb78;
+}
+
+.carnaval-samu {
+  color: #fbd38d !important;
+  font-size: 14px !important;
+  margin: 0 !important;
+}
+
+.carnaval-samu strong {
+  color: #f6ad55;
+  font-size: 16px;
+}
+
+/* Modal responsivo para telas pequenas */
+@media (max-height: 700px) {
+  .modal-carnaval-header {
+    padding: 20px 20px 16px;
+  }
+  
+  .modal-carnaval-badge {
+    padding: 6px 12px;
+    font-size: 12px;
+    margin-bottom: 8px;
+  }
+  
+  .modal-carnaval-header h2 {
+    font-size: 18px;
+  }
+  
+  .modal-carnaval-body {
+    padding: 0 16px 16px;
+    gap: 12px;
+  }
+  
+  .carnaval-card-main {
+    padding: 14px;
+    gap: 12px;
+  }
+  
+  .carnaval-icon-circle {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+  }
+  
+  .carnaval-icon-circle svg {
+    width: 22px;
+    height: 22px;
+  }
+  
+  .carnaval-dates {
+    font-size: 16px;
+  }
+  
+  .carnaval-card-main-text p {
+    font-size: 12px;
+  }
+  
+  .carnaval-highlight {
+    padding: 6px 10px;
+    font-size: 12px !important;
+  }
+  
+  .carnaval-info {
+    padding: 12px;
+  }
+  
+  .carnaval-info > p {
+    font-size: 12px;
+  }
+  
+  .carnaval-emergency {
+    padding-top: 12px;
+  }
+  
+  .carnaval-emergency p,
+  .carnaval-emergency-options span {
+    font-size: 12px;
+  }
+  
+  .carnaval-alo-saude {
+    padding: 10px 12px;
+    margin: 8px 0;
+  }
+  
+  .carnaval-alo-saude span {
+    font-size: 16px;
+  }
+  
+  .carnaval-alo-saude strong {
+    font-size: 11px;
+  }
+  
+  .carnaval-alo-saude a {
+    font-size: 14px;
+  }
+  
+  .modal-carnaval-decoration {
+    height: 80px;
+  }
+  
+  .confetti {
+    font-size: 14px;
+  }
+}
+
+/* Media query para mobile - imagem full width */
