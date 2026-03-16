@@ -304,7 +304,7 @@ async function carregarHorarios() {
               <line x1="12" y1="16" x2="12.01" y2="16"/>
             </svg>
           </div>
-          <p class="loading-text" style="color: #92400e;">Nenhum horário disponível no momento</p>
+          <p class="loading-text" style="color: #92400e;">Não há consultas disponíveis no momento, orientamos procurar o Centro de Saúde Alto Ribeirão às 7h, quando são distribuídas as fichas para atendimento no mesmo dia.</p>
         </div>
       `;
       return;

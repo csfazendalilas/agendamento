@@ -761,6 +761,17 @@ body {
   color: var(--color-gray-700);
 }
 
+.agendamento-alert {
+  margin-top: var(--spacing-md);
+  text-align: left;
+}
+
+.agendamento-alert p {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-gray-600);
+}
+
 .alert a {
   color: inherit;
   font-weight: 600;
