@@ -803,6 +803,16 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 
+  const linksPueripre = document.querySelectorAll('[data-action="pueripre"]');
+  linksPueripre.forEach(link => {
+    link.addEventListener('click', (e) => {
+      if (AGENDAMENTO_TEMPORARIAMENTE_DESATIVADO) {
+        e.preventDefault();
+        mostrarAvisoAgendamentoDesativado();
+      }
+    });
+  });
+
   const btnVoltar = document.querySelectorAll('[data-action="voltar"]');
   btnVoltar.forEach(btn => {
     btn.addEventListener('click', voltarParaIntro);
