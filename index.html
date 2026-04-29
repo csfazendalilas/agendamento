@@ -13,6 +13,32 @@
 </head>
 
 <body>
+  <!-- MODAL AGENDAMENTO TEMPORARIAMENTE DESATIVADO -->
+  <div id="modal-agendamento-desativado" class="modal-overlay" style="display: none;">
+    <div class="modal-aviso-card">
+      <div class="modal-aviso-header">
+        <div class="modal-aviso-badge">
+          <span>⚠️</span> Aviso importante
+        </div>
+        <h2>Agendamentos temporariamente desativados</h2>
+      </div>
+
+      <div class="modal-aviso-body">
+        <div class="modal-aviso-main">
+          <div class="modal-aviso-icon">📋</div>
+          <p>
+            Para consultas, procure o <strong>Centro de Saúde Alto Ribeirão</strong> às <strong>07h</strong>, onde são
+            entregues as fichas para atendimento do dia.
+          </p>
+        </div>
+      </div>
+
+      <button type="button" class="modal-aviso-btn" onclick="fecharModalAgendamentoDesativado()">
+        Entendi
+      </button>
+    </div>
+  </div>
+
   <!-- MODAL BLOQUEIO CARNAVAL -->
   <div id="modal-carnaval" class="modal-overlay modal-carnaval-overlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(135deg, rgba(139, 69, 139, 0.95) 0%, rgba(75, 0, 130, 0.98) 100%); z-index: 10000; align-items: center; justify-content: center; padding: 20px;">
     <div class="modal-carnaval-card" style="background: linear-gradient(180deg, #8b008b 0%, #4b0082 100%); border-radius: 24px; max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto; position: relative; color: white;">

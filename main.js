@@ -3,6 +3,11 @@
 // ============================================
 const API_URL = 'https://script.google.com/macros/s/AKfycbzSnLgusejiDF9oCtL-xjY54TybLn91HyX3NTofToGRs9rqREqg136D2czCsSLhNrti/exec';
 const WHATSAPP_DESTINO = '5548920039171';
+// ============================================
+// CONTROLE RÁPIDO: AGENDAMENTO ONLINE
+// Para voltar ao normal, altere para false.
+// ============================================
+const AGENDAMENTO_TEMPORARIAMENTE_DESATIVADO = true;
 
 // Estado global
 let slotsGlobais = [];
@@ -86,6 +91,23 @@ function fecharModalRecesso() {
   const modal = document.getElementById('modal-recesso');
   if (modal) {
     modal.style.display = 'none';
+  }
+}
+
+function mostrarAvisoAgendamentoDesativado() {
+  if (!AGENDAMENTO_TEMPORARIAMENTE_DESATIVADO) return;
+  const modal = document.getElementById('modal-agendamento-desativado');
+  if (modal) {
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  }
+}
+
+function fecharModalAgendamentoDesativado() {
+  const modal = document.getElementById('modal-agendamento-desativado');
+  if (modal) {
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
   }
 }
 
@@ -737,6 +759,8 @@ function configurarValidacaoEmTempoReal() {
 // INICIALIZAÇÃO
 // ============================================
 document.addEventListener('DOMContentLoaded', function () {
+  mostrarAvisoAgendamentoDesativado();
+
   // 🎭 VERIFICA SE DEVE BLOQUEAR O ACESSO (CARNAVAL) - PRIORIDADE MÁXIMA
   verificarModalCarnaval();
   
@@ -771,6 +795,10 @@ document.addEventListener('DOMContentLoaded', function () {
   btnAgendar.forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
+      if (AGENDAMENTO_TEMPORARIAMENTE_DESATIVADO) {
+        mostrarAvisoAgendamentoDesativado();
+        return;
+      }
       mostrarFormulario(true);
     });
   });
@@ -779,5 +807,14 @@ document.addEventListener('DOMContentLoaded', function () {
   btnVoltar.forEach(btn => {
     btn.addEventListener('click', voltarParaIntro);
   });
+
+  const modalAgendamentoDesativado = document.getElementById('modal-agendamento-desativado');
+  if (modalAgendamentoDesativado) {
+    modalAgendamentoDesativado.addEventListener('click', function (e) {
+      if (e.target === modalAgendamentoDesativado) {
+        fecharModalAgendamentoDesativado();
+      }
+    });
+  }
 });
 
