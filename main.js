@@ -7,7 +7,7 @@ const WHATSAPP_DESTINO = '5548920039171';
 // CONTROLE RÁPIDO: AGENDAMENTO ONLINE
 // Para voltar ao normal, altere para false.
 // ============================================
-const AGENDAMENTO_TEMPORARIAMENTE_DESATIVADO = true;
+const AGENDAMENTO_TEMPORARIAMENTE_DESATIVADO = false;
 
 // Estado global
 let slotsGlobais = [];
