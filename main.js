@@ -221,6 +221,40 @@ function parseHora(horaStr) {
 }
 
 /**
+ * Origem do slot: 'F' = médico, 'O' = enfermeira (vazio = médico)
+ */
+function origemDoSlot(slot) {
+  return ((slot && slot.origem) || 'F').toString().toUpperCase();
+}
+
+/**
+ * Preenche o select de horários com os slots carregados
+ */
+function preencherSelectHorarios() {
+  const select = document.getElementById('slotSelect');
+  if (!select) return;
+
+  select.innerHTML = '<option value="">Escolha um horário</option>';
+  slotsGlobais.forEach((slot, index) => {
+    const option = document.createElement('option');
+    option.value = index;
+
+    const diaSemanaLabel = slot.diaSemana
+      ? slot.diaSemana.replace('-feira', '')
+      : '';
+
+    const dataComDia = diaSemanaLabel
+      ? diaSemanaLabel + ', ' + slot.data
+      : slot.data;
+
+    const tipoProfissional = origemDoSlot(slot) === 'O' ? '(enfermeira)' : '(médico)';
+
+    option.text = dataComDia + ' às ' + slot.hora + ' ' + tipoProfissional;
+    select.appendChild(option);
+  });
+}
+
+/**
  * Ordena os slots por data e hora crescente
  */
 function ordenarSlots(slots) {
@@ -332,26 +366,7 @@ async function carregarHorarios() {
       return;
     }
 
-    select.innerHTML = '<option value="">Escolha um horário</option>';
-    slotsGlobais.forEach((slot, index) => {
-      const option = document.createElement('option');
-      option.value = index;
-
-      const diaSemanaLabel = slot.diaSemana
-        ? slot.diaSemana.replace('-feira', '')
-        : '';
-
-      const dataComDia = diaSemanaLabel
-        ? diaSemanaLabel + ', ' + slot.data
-        : slot.data;
-
-      // Define o tipo de profissional baseado na origem (F=médico, O=enfermeira, vazio=médico)
-      const origem = (slot.origem || 'F').toUpperCase();
-      const tipoProfissional = origem === 'O' ? '(enfermeira)' : '(médico)';
-
-      option.text = dataComDia + ' às ' + slot.hora + ' ' + tipoProfissional;
-      select.appendChild(option);
-    });
+    preencherSelectHorarios();
 
     loading.style.display = 'none';
     formContainer.style.display = 'block';
@@ -517,8 +532,7 @@ function construirResumoAgendamento(slot, nome, telefone, dataNascimento, observ
   const diaSemana = slot.diaSemana ? slot.diaSemana.replace('-feira', '') : '';
   const dataFormatada = diaSemana ? `${diaSemana}, ${slot.data}` : slot.data;
 
-  // Define o tipo de profissional baseado na origem (F=médico, O=enfermeira, vazio=médico)
-  const origem = (slot.origem || 'F').toUpperCase();
+  const origem = origemDoSlot(slot);
   const tipoProfissional = origem === 'O' ? 'Enfermeira' : 'Médico';
   const iconeProfissional = origem === 'O' ? '👩‍⚕️' : '👨‍⚕️';
 
@@ -581,8 +595,7 @@ function construirResumoAgendamento(slot, nome, telefone, dataNascimento, observ
 function construirUrlWhatsApp(slot, nome) {
   const diaSemana = slot.diaSemana ? slot.diaSemana.replace('-feira', '') : '';
   const dataFormatada = diaSemana ? `${diaSemana}, ${slot.data}` : slot.data;
-  const origem = (slot.origem || 'F').toUpperCase();
-  const tipoProfissional = origem === 'O' ? 'enfermeira' : 'médico';
+  const tipoProfissional = origemDoSlot(slot) === 'O' ? 'enfermeira' : 'médico';
 
   const texto = `Olá! Aqui é ${nome}. Acabei de solicitar um agendamento com ${tipoProfissional} para ${dataFormatada} às ${slot.hora}. Poderia confirmar, por favor?`;
 
@@ -632,8 +645,13 @@ async function enviarAgendamento(event) {
     </div>
   `;
 
+  // Identifica a vaga pela chave data+hora+origem (o rowIndex muda quando
+  // outras pessoas agendam; a chave não)
   const dados = {
-    rowIndex: slot.rowIndex,
+    data: slot.data,
+    hora: slot.hora,
+    origem: origemDoSlot(slot),
+    canal: 'app',
     nome: nome,
     telefone: telefone,
     dataNascimento: dataNascimento,
@@ -657,6 +675,12 @@ async function enviarAgendamento(event) {
 
     const res = await resp.json();
     console.log('Resposta da API:', res);
+
+    // O servidor só confirma quando o paciente foi registrado na agenda do
+    // posto. Qualquer outra resposta é tratada como falha.
+    if (!res || res.sucesso !== true) {
+      throw new Error((res && res.mensagem) || 'Não foi possível concluir o agendamento. Tente novamente.');
+    }
 
     msgDiv.className = 'msg sucesso';
     msgDiv.innerHTML = construirResumoAgendamento(slot, nome, telefone, dataNascimento, observacoes);
@@ -682,11 +706,29 @@ async function enviarAgendamento(event) {
     msgDiv.innerHTML = `
       <div style="text-align: center;">
         <p style="font-weight: 600; margin-bottom: 8px;">Erro ao realizar agendamento</p>
-        <p style="font-size: 14px; margin-bottom: 16px;">${err.message || 'Verifique sua conexão e tente novamente.'}</p>
+        <p style="font-size: 14px; margin-bottom: 16px;">${escapeHtml(err.message || 'Verifique sua conexão e tente novamente.')}</p>
       </div>
     `;
 
     msgDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    // Atualiza a lista de horários em segundo plano (a vaga pode ter sido
+    // ocupada por outra pessoa), mantendo a mensagem de erro na tela
+    atualizarHorariosAposFalha();
+  }
+}
+
+/**
+ * Recarrega os horários do servidor e atualiza o select, sem mexer no resto
+ * da tela (usado depois de uma falha de agendamento).
+ */
+async function atualizarHorariosAposFalha() {
+  try {
+    horariosCarregados = false;
+    await preCarregarHorarios();
+    preencherSelectHorarios();
+  } catch (e) {
+    console.error('Não foi possível atualizar os horários:', e);
   }
 }
 
