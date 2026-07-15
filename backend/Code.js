@@ -1,123 +1,87 @@
+// ====== BACKEND DO SITE DE AGENDAMENTO (EQUIPE 783) ======
+// Backend ÚNICO para os dois sites (agendamento atual e pueripre/enfermagem).
+// Publicado como Web App; os sites chamam via fetch (GET getSlots / POST bookSlot).
+//
+// Regra central: o agendamento SÓ é confirmado se o nome do paciente foi
+// escrito na agenda do posto. Se a escrita no posto falhar, o paciente recebe
+// uma mensagem de erro e a vaga continua livre — nada de agendamento "fantasma".
+
 // ====== CONFIGURAÇÕES ======
 const SHEET_ID = '15DF8LfTpuRw47etH-gZX49zwUebTUPB2FxtHibPtmY4';
 const SHEET_HORARIOS = 'Horarios';
 const SHEET_AGENDAMENTOS = 'Agendamentos';
 
-// Planilha geral do posto de saúde (onde você realmente atende)
+// Planilha geral do posto de saúde (onde a equipe realmente atende)
 const SHEET_POSTO_ID = '1fpwmi85pLQWPQrKJiawZOrSOip8MQlsfmyUpIU1wGlk';
 
 // Planilha de triagem (pré-natal/puericultura)
 const SHEET_TRIAGEM_ID = '1Ih-PMnTW698l-pqJks69qBn0QOQXSH3ZfcJKY6YhvOA';
 
-// ====== FUNÇÃO DE TESTE - Execute para debugar ======
-function testarBuscaReservado() {
-  // ALTERE ESTES VALORES PARA TESTAR:
-  const dataParaTestar = '12/12/2024';
-  const horaParaTestar = '09:00';
-  
-  Logger.log('========== TESTE DE BUSCA ==========');
-  Logger.log('Data: ' + dataParaTestar);
-  Logger.log('Hora: ' + horaParaTestar);
-  
-  try {
-    const ssPosto = SpreadsheetApp.openById(SHEET_POSTO_ID);
-    Logger.log('✅ Abriu planilha do posto');
-    
-    // Lista todas as abas
-    const todasAbas = ssPosto.getSheets();
-    Logger.log('Abas encontradas:');
-    todasAbas.forEach(aba => {
-      Logger.log('  - ' + aba.getName());
-    });
-    
-    // Busca a aba 783
-    const sheetPosto = encontrarAbaEquipe783PorData(ssPosto, dataParaTestar);
-    
-    if (sheetPosto) {
-      Logger.log('✅ Aba encontrada: ' + sheetPosto.getName());
-      
-      // Busca na ESTRUTURA 1 (coluna F)
-      Logger.log('--- Buscando na estrutura 1 (coluna F) ---');
-      const linhaF = encontrarLinhaReservada(sheetPosto, dataParaTestar, horaParaTestar, 6, 5);
-      
-      if (linhaF > 0) {
-        Logger.log('✅ Encontrado na coluna F, linha: ' + linhaF);
-        const dadosLinha = sheetPosto.getRange(linhaF, 1, 1, 8).getDisplayValues()[0];
-        Logger.log('  C (Data): ' + dadosLinha[2] + ' | E (Hora): ' + dadosLinha[4] + ' | F (Nome): ' + dadosLinha[5]);
-      } else {
-        Logger.log('❌ Não encontrado na coluna F');
-      }
-      
-      // Busca na ESTRUTURA 2 (coluna O)
-      Logger.log('--- Buscando na estrutura 2 (coluna O) ---');
-      const linhaO = encontrarLinhaReservada(sheetPosto, dataParaTestar, horaParaTestar, 15, 14);
-      
-      if (linhaO > 0) {
-        Logger.log('✅ Encontrado na coluna O, linha: ' + linhaO);
-        const dadosLinha = sheetPosto.getRange(linhaO, 13, 1, 5).getDisplayValues()[0];
-        Logger.log('  M (App): ' + dadosLinha[0] + ' | N (Hora): ' + dadosLinha[1] + ' | O (Nome): ' + dadosLinha[2] + ' | P (DN): ' + dadosLinha[3] + ' | Q (Motivo): ' + dadosLinha[4]);
-      } else {
-        Logger.log('❌ Não encontrado na coluna O');
-      }
-      
-    } else {
-      Logger.log('❌ Aba 783 NÃO encontrada para a data ' + dataParaTestar);
-    }
-  } catch (erro) {
-    Logger.log('❌ ERRO: ' + erro.message);
-  }
-  
-  Logger.log('========== FIM DO TESTE ==========');
-}
+const PALAVRA_RESERVADO = 'reservado';
+
+// Estruturas de colunas na agenda do posto, por origem:
+// F = médico     (hora na E, "reservado" na F; escreve marcador na D e nome/DN/motivo em F-H)
+// O = enfermeira (hora na N, "reservado" na O; escreve marcador na M e nome/DN/motivo em O-Q)
+const ESTRUTURAS_POSTO = {
+  'F': { colunaHorario: 5, colunaReservado: 6, colunaMarcador: 4, colunaNome: 6 },
+  'O': { colunaHorario: 14, colunaReservado: 15, colunaMarcador: 13, colunaNome: 15 }
+};
 
 // ====== ENDPOINTS (API) ======
 
 /**
- * GET:
- *  - ?action=getSlots  -> retorna lista de horários LIVRES em JSON
+ * GET ?action=getSlots -> lista de horários LIVRES em JSON
  */
 function doGet(e) {
   const action = e && e.parameter && e.parameter.action;
 
   if (action === 'getSlots') {
-    const slots = getAvailableSlots();
-    return ContentService
-      .createTextOutput(JSON.stringify(slots))
-      .setMimeType(ContentService.MimeType.JSON);
+    return respostaJson(getAvailableSlots());
   }
 
-  // Resposta padrão pra ação inválida
-  return ContentService
-    .createTextOutput(JSON.stringify({ error: 'Ação inválida' }))
-    .setMimeType(ContentService.MimeType.JSON);
+  return respostaJson({ error: 'Ação inválida' });
 }
 
 /**
- * POST:
- *  - corpo JSON com { rowIndex, nome, telefone, observacoes }
- *  - grava na planilha e retorna JSON com mensagem
+ * POST com corpo JSON:
+ *   { data, hora, origem, canal, nome, telefone, dataNascimento, observacoes, triagem }
+ * (payload antigo com rowIndex também é aceito, por compatibilidade)
+ *
+ * SEMPRE responde JSON — inclusive em erro ({ sucesso:false, mensagem }).
  */
 function doPost(e) {
-  const data = JSON.parse(e.postData.contents);
-  const res = bookSlot(data);
+  let res;
+  try {
+    const data = JSON.parse(e.postData.contents);
+    res = bookSlot(data);
+  } catch (erro) {
+    Logger.log('❌ Erro no doPost: ' + erro.message + '\n' + (erro.stack || ''));
+    res = {
+      sucesso: false,
+      mensagem: 'Não foi possível concluir o agendamento. Tente novamente em instantes.'
+    };
+  }
+  return respostaJson(res);
+}
 
+function respostaJson(objeto) {
   return ContentService
-    .createTextOutput(JSON.stringify(res))
+    .createTextOutput(JSON.stringify(objeto))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
 // ====== LÓGICA DE NEGÓCIO ======
 
 /**
- * Lê a aba Horarios e devolve só horários LIVRES já formatados
- * Agora inclui a coluna Origem (D) para saber se veio de F ou O
+ * Lê a aba Horarios e devolve só horários LIVRES já formatados.
+ * Cada slot: { rowIndex, data, hora, diaSemana, origem }
  */
 function getAvailableSlots() {
   const ss = SpreadsheetApp.openById(SHEET_ID);
   const sheet = ss.getSheetByName(SHEET_HORARIOS);
 
   if (!sheet) {
-    throw new Error('A aba "Horarios" não foi encontrada na planilha.');
+    throw new Error('A aba "' + SHEET_HORARIOS + '" não foi encontrada na planilha.');
   }
 
   const lastRow = sheet.getLastRow();
@@ -125,486 +89,459 @@ function getAvailableSlots() {
     return [];
   }
 
-  // Linha 2 até a última, colunas A (Data), B (Hora), C (Status), D (Origem)
-  const range = sheet.getRange(2, 1, lastRow - 1, 4);
-  const values = range.getValues();
-
+  const values = sheet.getRange(2, 1, lastRow - 1, 4).getValues();
+  const diasSemana = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
   const slots = [];
 
   values.forEach((row, index) => {
-    const dataCell = row[0];
-    const horaCell = row[1];
     const status = (row[2] || '').toString().toUpperCase().trim();
-    const origem = (row[3] || 'F').toString().toUpperCase().trim(); // Coluna D - Default F para retrocompatibilidade
+    if (status !== 'LIVRE') return;
 
-    if (status === 'LIVRE') {
-      const rowIndex = index + 2;
+    const dataStr = formatarDataCelula(row[0]);
+    const horaStr = formatarHoraCelula(row[1]);
+    const origem = (row[3] || 'F').toString().toUpperCase().trim();
 
-      const dataObj = new Date(dataCell);
+    const partes = dataStr.split('/');
+    if (partes.length !== 3) return; // data ilegível — não oferece o slot
 
-      const dataStr = Utilities.formatDate(
-        dataObj,
-        'America/Sao_Paulo',
-        'dd/MM/yyyy'
-      );
+    const dataObj = new Date(parseInt(partes[2], 10), parseInt(partes[1], 10) - 1, parseInt(partes[0], 10));
 
-      const horaStr = Utilities.formatDate(
-        new Date(horaCell),
-        'America/Sao_Paulo',
-        'HH:mm'
-      );
-
-      const diasSemana = [
-        'Domingo',
-        'Segunda-feira',
-        'Terça-feira',
-        'Quarta-feira',
-        'Quinta-feira',
-        'Sexta-feira',
-        'Sábado'
-      ];
-      const diaSemana = diasSemana[dataObj.getDay()];
-
-      slots.push({
-        rowIndex: rowIndex,
-        data: dataStr,
-        hora: horaStr,
-        diaSemana: diaSemana,
-        origem: origem  // 'F' ou 'O' - indica qual estrutura de colunas usar
-      });
-    }
+    slots.push({
+      rowIndex: index + 2,
+      data: dataStr,
+      hora: horaStr,
+      diaSemana: diasSemana[dataObj.getDay()],
+      origem: origem
+    });
   });
 
   return slots;
 }
 
 /**
- * Registra o agendamento e EXCLUI a linha do horário
- * Usa a coluna Origem para saber onde preencher os dados na planilha do posto
+ * Faz o agendamento, nesta ordem (tudo sob lock):
+ *   1. Localiza a vaga LIVRE pela chave data+hora+origem.
+ *   2. Escreve o paciente na agenda do posto (se falhar, PARA aqui — a vaga fica livre).
+ *   3. Remove a vaga e registra em Agendamentos.
+ *   4. Registra a triagem (não-crítico).
  */
 function bookSlot(bookingData) {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
-  const sheetHor = ss.getSheetByName(SHEET_HORARIOS);
-  const sheetAg = ss.getSheetByName(SHEET_AGENDAMENTOS);
-
-  const rowIndex = bookingData.rowIndex;
-  const nome = bookingData.nome;
-  const telefone = bookingData.telefone;
-  const dataNascimento = bookingData.dataNascimento || '';
-  const observacoes = bookingData.observacoes || '';
-
-  // Agora lê 4 colunas: Data, Hora, Status, Origem
-  const row = sheetHor.getRange(rowIndex, 1, 1, 4).getValues()[0];
-  const statusAtual = (row[2] || '').toString().toUpperCase().trim();
-  const origem = (row[3] || 'F').toString().toUpperCase().trim(); // Default F para retrocompatibilidade
-
-  if (statusAtual !== 'LIVRE') {
-    throw new Error('Esse horário acabou de ser ocupado. Por favor, escolha outro.');
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(30 * 1000);
+  } catch (erroLock) {
+    return {
+      sucesso: false,
+      mensagem: 'O sistema está ocupado no momento. Aguarde alguns segundos e tente novamente.'
+    };
   }
 
-  // Guarda os dados ANTES de excluir a linha
-  const data = row[0];
-  const hora = row[1];
-
-  Logger.log('Agendando horário com origem: ' + origem);
-
-  // EXCLUI a linha do horário (em vez de marcar como OCUPADO)
-  sheetHor.deleteRow(rowIndex);
-
-  // Formata a hora para HH:mm (sem segundos)
-  const horaFormatada = Utilities.formatDate(
-    new Date(hora),
-    'America/Sao_Paulo',
-    'HH:mm'
-  );
-
-  // Formata a data para dd/MM/yyyy
-  const dataFormatada = Utilities.formatDate(
-    new Date(data),
-    'America/Sao_Paulo',
-    'dd/MM/yyyy'
-  );
-
-  // Registra o agendamento na planilha pessoal
-  // Ordem: Timestamp, Data, Hora, Nome, DN, Observacoes, Telefone
-  sheetAg.appendRow([
-    new Date(), // Timestamp
-    dataFormatada,
-    horaFormatada,
-    nome,
-    dataNascimento,
-    observacoes,
-    telefone
-  ]);
-
-  // ====== REGISTRA NA PLANILHA GERAL DO POSTO DE SAÚDE ======
   try {
-    const ssPosto = SpreadsheetApp.openById(SHEET_POSTO_ID);
-    
-    // Busca a aba da equipe 783 que contém a data do agendamento
-    const sheetPosto = encontrarAbaEquipe783PorData(ssPosto, dataFormatada);
-    
-    if (sheetPosto) {
-      // Usa a ORIGEM para saber qual estrutura preencher
-      if (origem === 'F') {
-        // ====== ESTRUTURA 1: Coluna F (nome/reservado) ======
-        // Procura a linha que tem "reservado" na coluna F com a mesma data e horário (coluna E)
-        const linhaF = encontrarLinhaReservada(sheetPosto, dataFormatada, horaFormatada, 6, 5); // F=6, E=5
-        
-        if (linhaF > 0) {
-          // Substitui "reservado" pelos dados do paciente
-          // D = "app", F = Nome, G = DN, H = Motivo
-          sheetPosto.getRange(linhaF, 4).setValue('app');            // Coluna D - Marcado pelo app
-          sheetPosto.getRange(linhaF, 6).setValue(nome);             // Coluna F - Nome
-          sheetPosto.getRange(linhaF, 7).setValue(dataNascimento);   // Coluna G - Data de Nascimento
-          sheetPosto.getRange(linhaF, 8).setValue(observacoes);      // Coluna H - Motivo
-          Logger.log('✅ Dados preenchidos na linha ' + linhaF + ' (estrutura F)');
-        } else {
-          Logger.log('❌ Linha com "reservado" na coluna F não encontrada');
-        }
-      } else if (origem === 'O') {
-        // ====== ESTRUTURA 2: Coluna O (nome/reservado) ======
-        // Procura a linha que tem "reservado" na coluna O com a mesma data e horário (coluna N)
-        const linhaO = encontrarLinhaReservada(sheetPosto, dataFormatada, horaFormatada, 15, 14); // O=15, N=14
-        
-        if (linhaO > 0) {
-          // Substitui "reservado" pelos dados do paciente
-          // M = "app", N = Horário (já preenchido), O = Nome, P = DN, Q = Motivo
-          sheetPosto.getRange(linhaO, 13).setValue('app');           // Coluna M - Marcado pelo app
-          sheetPosto.getRange(linhaO, 15).setValue(nome);            // Coluna O - Nome
-          sheetPosto.getRange(linhaO, 16).setValue(dataNascimento);  // Coluna P - Data de Nascimento
-          sheetPosto.getRange(linhaO, 17).setValue(observacoes);     // Coluna Q - Motivo
-          Logger.log('✅ Dados preenchidos na linha ' + linhaO + ' (estrutura O)');
-        } else {
-          Logger.log('❌ Linha com "reservado" na coluna O não encontrada');
-        }
-      } else {
-        Logger.log('⚠️ Origem desconhecida: ' + origem + '. Não preencheu na planilha do posto.');
-      }
-    } else {
-      Logger.log('Aba da equipe 783 não encontrada para a data ' + dataFormatada);
+    const ss = SpreadsheetApp.openById(SHEET_ID);
+    const sheetHor = ss.getSheetByName(SHEET_HORARIOS);
+    const sheetAg = ss.getSheetByName(SHEET_AGENDAMENTOS);
+
+    if (!sheetHor || !sheetAg) {
+      return { sucesso: false, mensagem: 'Erro de configuração da planilha de vagas. Contate o posto.' };
     }
-  } catch (erroPosto) {
-    // Se der erro ao registrar no posto, não impede o agendamento principal
-    Logger.log('Erro ao registrar na planilha do posto: ' + erroPosto.message);
-  }
 
-  // ====== REGISTRA NA PLANILHA DE TRIAGEM (PRÉ-NATAL/PUERICULTURA) ======
-  try {
-    registrarTriagem(dataFormatada, horaFormatada, bookingData, 'Médico');
-  } catch (erroTriagem) {
-    Logger.log('[MED] Erro ao registrar na planilha de triagem: ' + erroTriagem.message);
-  }
+    const nome = (bookingData.nome || '').toString().trim();
+    const telefone = (bookingData.telefone || '').toString().trim();
+    const dataNascimento = (bookingData.dataNascimento || '').toString().trim();
+    const observacoes = (bookingData.observacoes || '').toString().trim();
+    const marcador = (bookingData.canal || '').toString().trim() || 'app';
 
-  return {
-    sucesso: true,
-    mensagem: 'Agendamento realizado com sucesso!',
-    data: data,
-    hora: hora
-  };
+    if (!nome) {
+      return { sucesso: false, mensagem: 'Informe o nome do paciente.' };
+    }
+
+    // 1) Localiza a vaga
+    const vaga = localizarVaga(sheetHor, bookingData);
+    if (!vaga) {
+      return { sucesso: false, mensagem: 'Esse horário acabou de ser ocupado. Por favor, escolha outro.' };
+    }
+
+    // 2) Escreve na agenda do posto ANTES de consumir a vaga
+    const posto = escreverNaAgendaDoPosto(vaga, nome, dataNascimento, observacoes, marcador);
+    if (!posto.ok) {
+      return { sucesso: false, mensagem: posto.mensagem };
+    }
+
+    // 3) Consome a vaga e registra o agendamento
+    removerVagaComVerificacao(sheetHor, vaga);
+    sheetAg.appendRow([new Date(), vaga.data, vaga.hora, nome, dataNascimento, observacoes, telefone]);
+
+    // 4) Triagem — não-crítico: erro aqui não desfaz o agendamento
+    try {
+      const profissional = vaga.origem === 'O' ? 'Enfermeira' : 'Médico';
+      registrarTriagem(vaga.data, vaga.hora, bookingData, profissional);
+    } catch (erroTriagem) {
+      Logger.log('[TRIAGEM] Erro (não-crítico): ' + erroTriagem.message);
+    }
+
+    SpreadsheetApp.flush();
+
+    return {
+      sucesso: true,
+      mensagem: 'Agendamento realizado com sucesso!',
+      data: vaga.data,
+      hora: vaga.hora
+    };
+  } finally {
+    try { lock.releaseLock(); } catch (ignorado) {}
+  }
 }
 
 /**
- * Encontra a aba da equipe 783 que contém a data especificada
- * Formato da aba: "783 (08/12 - 12/12) A" onde A=2025, B=2026
- * 
- * OTIMIZADO: Tenta adivinhar o nome da aba primeiro (instantâneo!)
- * Se não encontrar, faz busca filtrada como fallback
+ * Localiza a vaga LIVRE pela chave data+hora+origem enviada pelo site.
+ * Payload antigo (só rowIndex) é aceito: a chave é lida daquela linha e a
+ * busca continua pela chave — assim, mesmo que as linhas tenham se deslocado
+ * desde o carregamento da página, nunca se agenda a vaga errada.
+ * Retorna { rowIndex, data, hora, origem } ou null.
  */
-function encontrarAbaEquipe783PorData(spreadsheet, dataStr) {
-  // Converte a data do agendamento para comparação (DD/MM/YYYY)
-  const partesData = dataStr.split('/');
-  const diaAgendamento = parseInt(partesData[0], 10);
-  const mesAgendamento = parseInt(partesData[1], 10);
-  const anoAgendamento = parseInt(partesData[2], 10);
-  
-  // Define o sufixo baseado no ano: A=2025, B=2026
-  let sufixoAno = '';
-  if (anoAgendamento === 2025) {
-    sufixoAno = ' A';
-  } else if (anoAgendamento === 2026) {
-    sufixoAno = ' B';
+function localizarVaga(sheetHor, bookingData) {
+  const lastRow = sheetHor.getLastRow();
+  if (lastRow < 2) return null;
+
+  const valores = sheetHor.getRange(2, 1, lastRow - 1, 4).getValues();
+
+  let dataStr = (bookingData.data || '').toString().trim();
+  let horaStr = (bookingData.hora || '').toString().trim();
+  let origem = (bookingData.origem || '').toString().trim().toUpperCase();
+
+  // Compatibilidade com o payload antigo (rowIndex)
+  if ((!dataStr || !horaStr) && bookingData.rowIndex) {
+    const idx = parseInt(bookingData.rowIndex, 10);
+    if (!idx || idx < 2 || idx > lastRow) return null;
+    const row = valores[idx - 2];
+    dataStr = formatarDataCelula(row[0]);
+    horaStr = formatarHoraCelula(row[1]);
+    if (!origem) origem = (row[3] || 'F').toString().trim().toUpperCase();
   }
-  
-  // ========== OTIMIZAÇÃO: TENTAR ADIVINHAR O NOME DA ABA ==========
-  // Calcula a semana de trabalho (segunda a sexta) que contém a data
-  const dataObj = new Date(anoAgendamento, mesAgendamento - 1, diaAgendamento);
-  const diaSemana = dataObj.getDay(); // 0=dom, 1=seg, ..., 5=sex, 6=sab
-  
-  // Encontra a segunda-feira da semana
-  let diasAteSegunda = diaSemana === 0 ? -6 : 1 - diaSemana;
-  const segunda = new Date(dataObj);
-  segunda.setDate(dataObj.getDate() + diasAteSegunda);
-  
-  // Encontra a sexta-feira da semana
-  const sexta = new Date(segunda);
-  sexta.setDate(segunda.getDate() + 4);
-  
-  const diaIni = segunda.getDate();
-  const mesIni = segunda.getMonth() + 1;
-  const diaFim = sexta.getDate();
-  const mesFim = sexta.getMonth() + 1;
-  
-  // Formata com zero à esquerda
-  const diaIniStr = diaIni < 10 ? '0' + diaIni : '' + diaIni;
-  const mesIniStr = mesIni < 10 ? '0' + mesIni : '' + mesIni;
-  const diaFimStr = diaFim < 10 ? '0' + diaFim : '' + diaFim;
-  const mesFimStr = mesFim < 10 ? '0' + mesFim : '' + mesFim;
-  
-  Logger.log('Buscando aba 783 para ' + dataStr);
-  Logger.log('Semana calculada: ' + diaIni + '/' + mesIni + ' - ' + diaFim + '/' + mesFim);
-  Logger.log('Sufixo do ano: "' + sufixoAno + '"');
-  
-  // Tenta vários formatos de nome comuns
-  const tentativas = [
-    '783 (' + diaIniStr + '/' + mesIniStr + ' - ' + diaFimStr + '/' + mesFimStr + ')' + sufixoAno,
-    ' 783 (' + diaIniStr + '/' + mesIniStr + ' - ' + diaFimStr + '/' + mesFimStr + ')' + sufixoAno,
-    '783 (' + diaIni + '/' + mesIni + ' - ' + diaFim + '/' + mesFim + ')' + sufixoAno,
-    '783(' + diaIniStr + '/' + mesIniStr + ' - ' + diaFimStr + '/' + mesFimStr + ')' + sufixoAno,
-    '783 (' + diaIni + '/' + mesIniStr + '-' + diaFim + '/' + mesFimStr + ')' + sufixoAno,
-    '783 (' + diaIniStr + '/' + mesIniStr + '-' + diaFimStr + '/' + mesFimStr + ')' + sufixoAno,
-    '783 (' + diaIni + '-' + diaFim + '/' + mesIniStr + ')' + sufixoAno,
-    '783 (' + diaIniStr + '-' + diaFimStr + '/' + mesIniStr + ')' + sufixoAno,
-  ];
-  
-  Logger.log('Tentando encontrar por nome direto:');
-  
-  // Tenta encontrar por nome direto (MUITO RÁPIDO!)
-  for (let i = 0; i < tentativas.length; i++) {
-    Logger.log('  Tentativa ' + (i+1) + ': "' + tentativas[i] + '"');
-    const sheet = spreadsheet.getSheetByName(tentativas[i]);
-    if (sheet) {
-      Logger.log('✅ ENCONTRADA! Aba: ' + tentativas[i]);
-      return sheet;
+
+  if (!dataStr || !horaStr) return null;
+  if (!origem) origem = 'F';
+
+  for (let i = 0; i < valores.length; i++) {
+    const status = (valores[i][2] || '').toString().trim().toUpperCase();
+    if (status !== 'LIVRE') continue;
+
+    const origemLinha = (valores[i][3] || 'F').toString().trim().toUpperCase();
+    if (origemLinha !== origem) continue;
+
+    const dataLinha = formatarDataCelula(valores[i][0]);
+    const horaLinha = formatarHoraCelula(valores[i][1]);
+
+    if (compararDatas(dataLinha, dataStr) && compararHoras(horaLinha, horaStr)) {
+      return { rowIndex: i + 2, data: dataLinha, hora: horaLinha, origem: origem };
     }
   }
-  
-  Logger.log('Nome direto não encontrado, fazendo busca filtrada...');
-  
-  // ========== FALLBACK: BUSCA FILTRADA ==========
-  const sheets = spreadsheet.getSheets();
-  
-  // Filtra: só abas que contêm "783", não são modelo, e têm o sufixo certo
-  for (let i = 0; i < sheets.length; i++) {
-    const nomeAba = sheets[i].getName();
-    
-    // Filtro rápido
-    if (nomeAba.indexOf('783') === -1) continue;
-    if (nomeAba.toLowerCase().indexOf('modelo') !== -1) continue;
-    
-    // Filtro de sufixo - deve terminar com " B" ou " A" (COM espaço antes)
-    // sufixoAno já contém o espaço: " A" ou " B"
-    if (sufixoAno) {
-      const nomeAbaTrimmed = nomeAba.trim();
-      if (!nomeAbaTrimmed.endsWith(sufixoAno)) continue;
-    }
-    
-    // Verifica se a data está no período
-    const match = nomeAba.match(/(\d{1,2})\/(\d{1,2})\s*-\s*(\d{1,2})\/(\d{1,2})/);
-    if (match) {
-      const diaInicio = parseInt(match[1], 10);
-      const mesInicio = parseInt(match[2], 10);
-      const diaFimAba = parseInt(match[3], 10);
-      const mesFimAba = parseInt(match[4], 10);
-      
-      if (verificarDataNoPeriodo(diaAgendamento, mesAgendamento, diaInicio, mesInicio, diaFimAba, mesFimAba)) {
-        Logger.log('✅ Aba encontrada por busca: ' + nomeAba);
-        return sheets[i];
-      }
-    }
-  }
-  
-  Logger.log('❌ Nenhuma aba encontrada para a data ' + dataStr);
+
   return null;
 }
 
 /**
- * Verifica se uma data está dentro de um período
+ * Escreve o paciente na agenda do posto, substituindo o "reservado".
+ * Retorna { ok: true } ou { ok: false, mensagem } — nunca engole erro.
+ */
+function escreverNaAgendaDoPosto(vaga, nome, dataNascimento, observacoes, marcador) {
+  const estrutura = ESTRUTURAS_POSTO[vaga.origem];
+  if (!estrutura) {
+    return { ok: false, mensagem: 'Configuração de agenda desconhecida (origem "' + vaga.origem + '"). Contate o posto.' };
+  }
+
+  let ssPosto;
+  try {
+    ssPosto = SpreadsheetApp.openById(SHEET_POSTO_ID);
+  } catch (erro) {
+    Logger.log('❌ Não foi possível abrir a planilha do posto: ' + erro.message);
+    return { ok: false, mensagem: 'Não foi possível acessar a agenda do posto agora. Tente novamente em alguns minutos.' };
+  }
+
+  const sheetPosto = encontrarAbaEquipe783PorData(ssPosto, vaga.data);
+  if (!sheetPosto) {
+    Logger.log('❌ Aba da equipe 783 não encontrada para ' + vaga.data);
+    return { ok: false, mensagem: 'A agenda do posto para o dia ' + vaga.data + ' não foi encontrada. Escolha outro horário ou contate o posto.' };
+  }
+
+  const linha = encontrarLinhaReservada(sheetPosto, vaga.data, vaga.hora, estrutura.colunaReservado, estrutura.colunaHorario);
+  if (linha < 1) {
+    Logger.log('❌ "' + PALAVRA_RESERVADO + '" não encontrado em "' + sheetPosto.getName() + '" para ' + vaga.data + ' ' + vaga.hora + ' (origem ' + vaga.origem + ')');
+    return { ok: false, mensagem: 'Esse horário não está mais disponível na agenda do posto. Por favor, escolha outro horário.' };
+  }
+
+  try {
+    sheetPosto.getRange(linha, estrutura.colunaMarcador).setValue(marcador);
+    // Nome, data de nascimento e motivo ficam em colunas contíguas (F-H ou O-Q)
+    sheetPosto.getRange(linha, estrutura.colunaNome, 1, 3).setValues([[nome, dataNascimento, observacoes]]);
+  } catch (erro) {
+    Logger.log('❌ Erro ao escrever na agenda do posto: ' + erro.message);
+    return { ok: false, mensagem: 'Não foi possível registrar na agenda do posto. Tente novamente em instantes.' };
+  }
+
+  Logger.log('✅ Paciente registrado no posto: "' + sheetPosto.getName() + '" linha ' + linha + ' (origem ' + vaga.origem + ')');
+  return { ok: true };
+}
+
+/**
+ * Remove a linha da vaga conferindo antes se ela ainda é a mesma — o
+ * Triggerposto é outro projeto Apps Script (lock não compartilhado) e pode
+ * ter inserido/removido linhas nesse meio-tempo.
+ */
+function removerVagaComVerificacao(sheetHor, vaga) {
+  const lastRow = sheetHor.getLastRow();
+
+  if (vaga.rowIndex >= 2 && vaga.rowIndex <= lastRow) {
+    const atual = sheetHor.getRange(vaga.rowIndex, 1, 1, 4).getValues()[0];
+    const confere =
+      compararDatas(formatarDataCelula(atual[0]), vaga.data) &&
+      compararHoras(formatarHoraCelula(atual[1]), vaga.hora) &&
+      (atual[3] || 'F').toString().trim().toUpperCase() === vaga.origem;
+
+    if (confere) {
+      sheetHor.deleteRow(vaga.rowIndex);
+      return;
+    }
+  }
+
+  // A linha se deslocou: re-localiza pela chave e remove a primeira que bater
+  for (let linha = sheetHor.getLastRow(); linha >= 2; linha--) {
+    const atual = sheetHor.getRange(linha, 1, 1, 4).getValues()[0];
+    const confere =
+      compararDatas(formatarDataCelula(atual[0]), vaga.data) &&
+      compararHoras(formatarHoraCelula(atual[1]), vaga.hora) &&
+      (atual[3] || 'F').toString().trim().toUpperCase() === vaga.origem;
+    if (confere) {
+      sheetHor.deleteRow(linha);
+      return;
+    }
+  }
+
+  // Vaga já não está na lista (ex.: o próprio trigger removeu). O paciente já
+  // está na agenda do posto, então segue; se sobrar linha, o menu
+  // "Limpar horários órfãos" resolve.
+  Logger.log('⚠️ Vaga não encontrada para remover: ' + vaga.data + ' ' + vaga.hora + ' (' + vaga.origem + ')');
+}
+
+/**
+ * Encontra a aba da equipe 783 que contém a data (formato "783 (dd/MM - dd/MM) X",
+ * X = A para 2025, B para 2026, e assim por diante).
+ * Tenta o nome padrão direto (rápido) e cai para a varredura com regex.
+ */
+function encontrarAbaEquipe783PorData(spreadsheet, dataStr) {
+  const partesData = dataStr.split('/');
+  const dia = parseInt(partesData[0], 10);
+  const mes = parseInt(partesData[1], 10);
+  const ano = parseInt(partesData[2], 10);
+
+  // Sufixo do ano: A=2025, B=2026, C=2027...
+  const sufixoAno = ano >= 2025 ? ' ' + String.fromCharCode(65 + (ano - 2025)) : '';
+
+  // Semana de trabalho (segunda a sexta) que contém a data
+  const dataObj = new Date(ano, mes - 1, dia);
+  const diaSemana = dataObj.getDay();
+  const segunda = new Date(dataObj);
+  segunda.setDate(dataObj.getDate() + (diaSemana === 0 ? -6 : 1 - diaSemana));
+  const sexta = new Date(segunda);
+  sexta.setDate(segunda.getDate() + 4);
+
+  const dois = (n) => (n < 10 ? '0' + n : '' + n);
+  const nomePadrao = '783 (' + dois(segunda.getDate()) + '/' + dois(segunda.getMonth() + 1) +
+    ' - ' + dois(sexta.getDate()) + '/' + dois(sexta.getMonth() + 1) + ')' + sufixoAno;
+
+  const direto = spreadsheet.getSheetByName(nomePadrao);
+  if (direto) {
+    return direto;
+  }
+
+  // Fallback: varre as abas e interpreta o período do nome
+  const sheets = spreadsheet.getSheets();
+
+  for (let i = 0; i < sheets.length; i++) {
+    const nomeAba = sheets[i].getName();
+
+    if (nomeAba.indexOf('783') === -1) continue;
+    if (nomeAba.toLowerCase().indexOf('modelo') !== -1) continue;
+    if (sufixoAno && !nomeAba.trim().endsWith(sufixoAno)) continue;
+
+    // Formato completo: DD/MM - DD/MM
+    let match = nomeAba.match(/(\d{1,2})\/(\d{1,2})\s*-\s*(\d{1,2})\/(\d{1,2})/);
+    if (match) {
+      if (verificarDataNoPeriodo(dia, mes, parseInt(match[1], 10), parseInt(match[2], 10), parseInt(match[3], 10), parseInt(match[4], 10))) {
+        return sheets[i];
+      }
+      continue;
+    }
+
+    // Formato abreviado: (DD - DD/MM), mesmo mês
+    match = nomeAba.match(/\((\d{1,2})\s*-\s*(\d{1,2})\/(\d{1,2})\)/);
+    if (match) {
+      const mesAba = parseInt(match[3], 10);
+      if (verificarDataNoPeriodo(dia, mes, parseInt(match[1], 10), mesAba, parseInt(match[2], 10), mesAba)) {
+        return sheets[i];
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Verifica se uma data (dia/mês) está dentro de um período, inclusive
+ * períodos que cruzam meses (ex.: 30/11 - 04/12).
  */
 function verificarDataNoPeriodo(dia, mes, diaInicio, mesInicio, diaFim, mesFim) {
-  // Mesmo mês início e fim
   if (mesInicio === mesFim) {
     return mes === mesInicio && dia >= diaInicio && dia <= diaFim;
   }
-  
-  // Período cruza meses (ex: 30/11 - 04/12)
-  if (mes === mesInicio && dia >= diaInicio) {
-    return true;
-  }
-  if (mes === mesFim && dia <= diaFim) {
-    return true;
-  }
-  
+  if (mes === mesInicio && dia >= diaInicio) return true;
+  if (mes === mesFim && dia <= diaFim) return true;
   return false;
 }
 
 /**
- * Encontra a linha que tem "reservado" na coluna especificada com a data e horário correspondentes
- * 
- * @param {Sheet} sheet - A aba da planilha
- * @param {string} dataStr - Data no formato DD/MM/YYYY
- * @param {string} horaStr - Hora no formato HH:mm
- * @param {number} colunaReservado - Número da coluna onde está "reservado" (F=6, O=15)
- * @param {number} colunaHorario - Número da coluna do horário (E=5, N=14)
- * @returns {number} Número da linha encontrada ou -1 se não encontrar
+ * Encontra a linha que tem "reservado" na coluna indicada, com data (coluna C,
+ * tratando células mescladas) e horário correspondentes.
+ * Retorna o número da linha (1-indexed) ou -1.
  */
 function encontrarLinhaReservada(sheet, dataStr, horaStr, colunaReservado, colunaHorario) {
-  // Valores padrão para retrocompatibilidade (estrutura original: F e E)
-  colunaReservado = colunaReservado || 6;  // Coluna F
-  colunaHorario = colunaHorario || 5;      // Coluna E
-  
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return -1;
-  
-  // Lê até a coluna Q (17) para cobrir ambas estruturas
-  const dados = sheet.getRange(1, 1, lastRow, 17).getDisplayValues();
-  
-  // Extrai dia e mês da data do agendamento (formato DD/MM/YYYY)
-  const partesData = dataStr.split('/');
-  const diaAgendamento = partesData[0].replace(/^0/, ''); // Remove zero à esquerda
-  const mesAgendamento = partesData[1].replace(/^0/, ''); // Remove zero à esquerda
-  
-  // Normaliza a hora (remove zero à esquerda se houver)
-  const horaAgendamento = horaStr.replace(/^0/, '');
-  
-  const nomeColuna = colunaReservado === 6 ? 'F' : 'O';
-  Logger.log('Buscando "reservado" na coluna ' + nomeColuna + ': dia=' + diaAgendamento + ', mês=' + mesAgendamento + ', hora=' + horaAgendamento);
-  
-  // Guarda a última data encontrada (para lidar com células mescladas)
-  let ultimaDataEncontrada = '';
-  
-  // Índices das colunas (0-based)
-  const idxData = 2;  // Coluna C sempre
+
+  const dados = sheet.getRange(1, 1, lastRow, Math.max(colunaReservado, colunaHorario, 3)).getDisplayValues();
+
+  const idxData = 2; // Coluna C
   const idxHora = colunaHorario - 1;
   const idxReservado = colunaReservado - 1;
-  
+
+  let ultimaDataEncontrada = '';
+
   for (let i = 0; i < dados.length; i++) {
-    let dataLinha = (dados[i][idxData] || '').toString().trim(); // Coluna C
-    const horaLinha = (dados[i][idxHora] || '').toString().trim(); // Coluna de horário
-    const nomeLinha = (dados[i][idxReservado] || '').toString().toLowerCase().trim(); // Coluna de reservado
-    
-    // Se a célula da data está vazia, usa a última data encontrada (célula mesclada)
+    let dataLinha = (dados[i][idxData] || '').toString().trim();
+    const horaLinha = (dados[i][idxHora] || '').toString().trim();
+    const nomeLinha = (dados[i][idxReservado] || '').toString().toLowerCase().trim();
+
+    // Células mescladas de data: usa a última data vista
     if (dataLinha) {
       ultimaDataEncontrada = dataLinha;
     } else {
       dataLinha = ultimaDataEncontrada;
     }
-    
-    // Verifica se é "reservado"
-    if (nomeLinha !== 'reservado') {
-      continue;
-    }
-    
-    // Compara o horário (com e sem zero à esquerda)
-    const horaLinhaLimpa = horaLinha.replace(/^0/, '');
-    const horaMatch = horaLinha === horaStr || horaLinhaLimpa === horaAgendamento;
-    
-    if (!horaMatch) {
-      continue;
-    }
-    
-    // Compara a data
-    let dataMatch = false;
-    
+
+    if (nomeLinha !== PALAVRA_RESERVADO) continue;
+    if (!compararHoras(formatarHoraParaTexto(horaLinha), horaStr)) continue;
+
+    // A data na aba pode estar como dd/MM ou dd/MM/yyyy dentro de um texto
     const matchData = dataLinha.match(/(\d{1,2})\/(\d{1,2})/);
-    if (matchData) {
-      const diaLinha = matchData[1].replace(/^0/, '');
-      const mesLinha = matchData[2].replace(/^0/, '');
-      dataMatch = (diaLinha === diaAgendamento && mesLinha === mesAgendamento);
-    }
-    
-    if (dataMatch && horaMatch) {
-      Logger.log('ENCONTROU "reservado" na coluna ' + nomeColuna + ', linha ' + (i + 1));
-      return i + 1; // Retorna o número da linha (1-indexed)
+    if (!matchData) continue;
+
+    const partes = dataStr.split('/');
+    const diaOk = matchData[1].replace(/^0/, '') === partes[0].replace(/^0/, '');
+    const mesOk = matchData[2].replace(/^0/, '') === partes[1].replace(/^0/, '');
+
+    if (diaOk && mesOk) {
+      return i + 1;
     }
   }
-  
-  Logger.log('Não encontrou "reservado" na coluna ' + nomeColuna + ' para ' + dataStr + ' ' + horaStr);
+
   return -1;
 }
 
-/**
- * Encontra a aba da equipe 783 na planilha do posto (versão simples)
- * Ignora a aba "783 (modelo)" e busca a aba atual
- */
-function encontrarAbaEquipe783(spreadsheet) {
-  const sheets = spreadsheet.getSheets();
-  
-  for (let i = 0; i < sheets.length; i++) {
-    const nomeAba = sheets[i].getName();
-    
-    // Verifica se contém "783" mas NÃO é a aba modelo
-    if (nomeAba.indexOf('783') !== -1 && nomeAba.toLowerCase().indexOf('modelo') === -1) {
-      return sheets[i];
-    }
+// ====== FORMATAÇÃO / COMPARAÇÃO ======
+
+/** Data da célula (Date ou texto) -> "dd/MM/yyyy" */
+function formatarDataCelula(valor) {
+  if (valor instanceof Date && !isNaN(valor.getTime())) {
+    return Utilities.formatDate(valor, 'America/Sao_Paulo', 'dd/MM/yyyy');
   }
-  
-  return null;
+  const texto = (valor || '').toString().trim();
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(texto)) return texto;
+  const d = new Date(valor);
+  if (!isNaN(d.getTime())) {
+    return Utilities.formatDate(d, 'America/Sao_Paulo', 'dd/MM/yyyy');
+  }
+  return texto;
 }
 
-// ====== REGISTRAR NA PLANILHA DE TRIAGEM ======
+/** Hora da célula (Date ou texto) -> "HH:mm" */
+function formatarHoraCelula(valor) {
+  if (valor instanceof Date && !isNaN(valor.getTime())) {
+    return Utilities.formatDate(valor, 'America/Sao_Paulo', 'HH:mm');
+  }
+  return formatarHoraParaTexto((valor || '').toString().trim());
+}
+
+/** Normaliza texto de hora ("8:00" -> "08:00") */
+function formatarHoraParaTexto(texto) {
+  if (/^\d{2}:\d{2}$/.test(texto)) return texto;
+  if (/^\d{1}:\d{2}$/.test(texto)) return '0' + texto;
+  const d = new Date(texto);
+  if (!isNaN(d.getTime())) {
+    return Utilities.formatDate(d, 'America/Sao_Paulo', 'HH:mm');
+  }
+  return texto;
+}
+
+/** Compara datas dd/MM/yyyy ignorando zeros à esquerda */
+function compararDatas(data1, data2) {
+  if (!data1 || !data2) return false;
+  const normalizar = (d) => {
+    const partes = d.split('/');
+    if (partes.length !== 3) return d;
+    return partes[0].replace(/^0+/, '') + '/' + partes[1].replace(/^0+/, '') + '/' + partes[2];
+  };
+  return normalizar(data1) === normalizar(data2);
+}
+
+/** Compara horas HH:mm ignorando zeros à esquerda */
+function compararHoras(hora1, hora2) {
+  if (!hora1 || !hora2) return false;
+  const normalizar = (h) => {
+    const partes = h.split(':');
+    if (partes.length !== 2) return h;
+    return partes[0].replace(/^0+/, '') + ':' + partes[1].replace(/^0+/, '');
+  };
+  return normalizar(hora1) === normalizar(hora2);
+}
+
+// ====== PLANILHA DE TRIAGEM ======
+
 /**
- * Registra os dados da triagem (pré-natal/puericultura) em planilha separada
+ * Registra os dados da triagem (pré-natal/puericultura) em planilha separada.
  */
 function registrarTriagem(dataConsulta, horaConsulta, dados, profissional) {
-  try {
-    const sheetTriagem = SpreadsheetApp.openById(SHEET_TRIAGEM_ID);
-    let aba = sheetTriagem.getSheetByName('Triagem');
-    
-    // Se a aba não existir, cria com cabeçalho
-    if (!aba) {
-      aba = sheetTriagem.insertSheet('Triagem');
-      aba.appendRow([
-        'Timestamp',
-        'Tipo',
-        'Nome',
-        'Data Nascimento',
-        'Motivo',
-        'Data Consulta',
-        'Hora Consulta',
-        'Profissional',
-        // Pré-natal
-        'Última Consulta',
-        'Data Última Consulta',
-        'Semanas Gestacionais',
-        'Número Semanas',
-        'Último Profissional (PN)',
-        // Puericultura
-        'Meses Criança',
-        'Última Consulta (meses)',
-        'Último Profissional (PC)'
-      ]);
-    }
-    
-    const triagem = dados.triagem || {};
-    
-    // Monta a linha com todos os dados
-    const linha = [
-      new Date(),                                    // A: Timestamp
-      triagem.tipo || '',                            // B: Tipo (pre-natal / puericultura)
-      dados.nome || '',                              // C: Nome
-      dados.dataNascimento || '',                    // D: Data Nascimento
-      dados.observacoes || '',                       // E: Motivo
-      dataConsulta,                                  // F: Data Consulta
-      horaConsulta,                                  // G: Hora Consulta
-      profissional,                                  // H: Profissional (Enfermagem/Médico)
-      // Pré-natal
-      triagem.ultimaConsulta || '',                  // I: Última Consulta (data/primeira)
-      triagem.dataUltimaConsulta || '',              // J: Data Última Consulta
-      triagem.semanasGestacao || '',                 // K: Semanas Gestacionais (semanas/nao_lembro)
-      triagem.numeroSemanas || '',                   // L: Número Semanas
-      triagem.tipo === 'pre-natal' ? triagem.ultimoProfissional : '', // M: Último Profissional (PN)
-      // Puericultura
-      triagem.mesesCrianca || '',                    // N: Meses Criança
-      triagem.ultimaConsultaMeses || '',             // O: Última Consulta (meses)
-      triagem.tipo === 'puericultura' ? triagem.ultimoProfissional : '' // P: Último Profissional (PC)
-    ];
-    
-    aba.appendRow(linha);
-    Logger.log('[TRIAGEM] Dados registrados com sucesso');
-    
-  } catch (error) {
-    Logger.log('[TRIAGEM] Erro ao registrar: ' + error.message);
-    throw error;
+  const sheetTriagem = SpreadsheetApp.openById(SHEET_TRIAGEM_ID);
+  let aba = sheetTriagem.getSheetByName('Triagem');
+
+  if (!aba) {
+    aba = sheetTriagem.insertSheet('Triagem');
+    aba.appendRow([
+      'Timestamp', 'Tipo', 'Nome', 'Data Nascimento', 'Motivo',
+      'Data Consulta', 'Hora Consulta', 'Profissional',
+      'Última Consulta', 'Data Última Consulta', 'Semanas Gestacionais',
+      'Número Semanas', 'Último Profissional (PN)',
+      'Meses Criança', 'Última Consulta (meses)', 'Último Profissional (PC)'
+    ]);
   }
+
+  const triagem = dados.triagem || {};
+
+  aba.appendRow([
+    new Date(),
+    triagem.tipo || '',
+    dados.nome || '',
+    dados.dataNascimento || '',
+    dados.observacoes || '',
+    dataConsulta,
+    horaConsulta,
+    profissional,
+    triagem.ultimaConsulta || '',
+    triagem.dataUltimaConsulta || '',
+    triagem.semanasGestacao || '',
+    triagem.numeroSemanas || '',
+    triagem.tipo === 'pre-natal' ? (triagem.ultimoProfissional || '') : '',
+    triagem.mesesCrianca || '',
+    triagem.ultimaConsultaMeses || '',
+    triagem.tipo === 'puericultura' ? (triagem.ultimoProfissional || '') : ''
+  ]);
 }
