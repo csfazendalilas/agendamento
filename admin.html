@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Painel de Administração | Equipe Lilás</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* ===== estilos próprios do painel (namespace adm-) ===== */
+    .adm-wrap {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 20px 14px 80px;
+    }
+
+    .adm-card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 18px;
+      box-shadow: 0 4px 20px rgba(30, 30, 80, .08);
+    }
+
+    .adm-card h2 {
+      font-size: 1.05em;
+      margin: 0 0 4px;
+      color: #1e293b;
+    }
+
+    .adm-card .adm-sub {
+      color: #64748b;
+      font-size: .88em;
+      margin: 0 0 14px;
+    }
+
+    .adm-topbar {
+      position: sticky;
+      top: 0;
+      z-index: 500;
+      background: #fff;
+      border-radius: 0 0 16px 16px;
+      box-shadow: 0 4px 16px rgba(30, 30, 80, .12);
+      padding: 12px 16px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+
+    .adm-topbar .adm-titulo {
+      font-weight: 700;
+      color: #1e293b;
+      margin-right: auto;
+    }
+
+    .adm-status {
+      font-size: .85em;
+      color: #64748b;
+      width: 100%;
+    }
+
+    .adm-status.sujo { color: #b45309; font-weight: 600; }
+    .adm-status.ok { color: #15803d; font-weight: 600; }
+    .adm-status.erro { color: #b91c1c; font-weight: 600; }
+
+    .adm-btn {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-size: .92em;
+      font-weight: 600;
+      cursor: pointer;
+      background: #e2e8f0;
+      color: #1e293b;
+    }
+
+    .adm-btn.primario { background: #5849a0; color: #fff; }
+    .adm-btn.perigo { background: #fee2e2; color: #b91c1c; }
+    .adm-btn:disabled { opacity: .5; cursor: default; }
+
+    .adm-campo { margin-bottom: 12px; }
+
+    .adm-campo label {
+      display: block;
+      font-size: .82em;
+      font-weight: 600;
+      color: #475569;
+      margin-bottom: 4px;
+    }
+
+    .adm-campo input[type="text"],
+    .adm-campo textarea,
+    .adm-campo select {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px 12px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      font-size: .95em;
+      font-family: inherit;
+      background: #fff;
+      color: #1e293b;
+    }
+
+    .adm-campo textarea { min-height: 74px; resize: vertical; }
+
+    .adm-campo .adm-dica {
+      font-size: .76em;
+      color: #94a3b8;
+      margin-top: 3px;
+    }
+
+    .adm-toggle {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      background: #fff;
+    }
+
+    .adm-toggle input[type="checkbox"] {
+      width: auto !important;
+      flex: 0 0 auto;
+      margin-top: 3px;
+      transform: scale(1.3);
+    }
+
+    .adm-toggle > div { flex: 1; text-align: left; }
+    .adm-toggle strong { display: block; font-size: .92em; color: #1e293b; }
+    .adm-toggle span { font-size: .8em; color: #64748b; }
+    .adm-toggle.ligado { border-color: #5849a0; background: #f5f3ff; }
+
+    /* ===== cartões de item (box/aviso) ===== */
+    .adm-item {
+      border: 1.5px solid #e2e8f0;
+      border-radius: 14px;
+      margin-bottom: 14px;
+      background: #fbfcfe;
+      overflow: hidden;
+    }
+
+    .adm-item.arrastando { opacity: .45; }
+    .adm-item.alvo-drop { border-color: #5849a0; box-shadow: 0 0 0 2px #5849a066; }
+
+    .adm-item-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      background: #f1f5f9;
+      flex-wrap: wrap;
+    }
+
+    .adm-handle {
+      cursor: grab;
+      font-size: 1.1em;
+      padding: 4px 8px;
+      border-radius: 8px;
+      background: #e2e8f0;
+      user-select: none;
+    }
+
+    .adm-item-nome {
+      font-weight: 600;
+      font-size: .9em;
+      color: #334155;
+      margin-right: auto;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 45%;
+    }
+
+    .adm-mini {
+      border: none;
+      background: #fff;
+      border-radius: 8px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: .95em;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, .12);
+    }
+
+    .adm-mini.ativo { background: #5849a0; color: #fff; }
+
+    .adm-preview {
+      padding: 12px;
+      pointer-events: none;
+    }
+
+    .adm-preview .intro-card-item { margin: 0; }
+
+    .adm-item.oculto .adm-preview { opacity: .35; }
+
+    .adm-badge-oculto {
+      display: inline-block;
+      background: #64748b;
+      color: #fff;
+      border-radius: 6px;
+      font-size: .7em;
+      font-weight: 700;
+      padding: 2px 8px;
+      letter-spacing: .5px;
+    }
+
+    .adm-editor {
+      padding: 14px;
+      border-top: 1.5px dashed #e2e8f0;
+      background: #fff;
+    }
+
+    .adm-sub-item {
+      border: 1.5px solid #eef2f7;
+      border-radius: 10px;
+      padding: 10px;
+      margin-bottom: 10px;
+      background: #f8fafc;
+    }
+
+    .adm-sub-item-head {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 8px;
+      font-size: .82em;
+      font-weight: 700;
+      color: #475569;
+    }
+
+    .adm-sub-item-head .adm-mini { padding: 3px 8px; font-size: .85em; }
+    .adm-sub-item-head span { margin-right: auto; }
+
+    .adm-add-row { display: flex; gap: 10px; flex-wrap: wrap; }
+
+    .adm-linha-2col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    @media (max-width: 540px) {
+      .adm-linha-2col { grid-template-columns: 1fr; }
+    }
+
+    /* login */
+    .adm-login {
+      max-width: 380px;
+      margin: 12vh auto 0;
+    }
+
+    .adm-login h1 { font-size: 1.3em; color: #1e293b; margin: 0 0 6px; }
+    .adm-msg-erro { color: #b91c1c; font-size: .88em; margin-top: 10px; min-height: 1.2em; }
+  </style>
+</head>
+
+<body>
+  <!-- ===== LOGIN ===== -->
+  <div id="tela-login" class="adm-wrap adm-login">
+    <div class="adm-card">
+      <h1>🎛️ Painel do site</h1>
+      <p class="adm-sub">Equipe Lilás — edição da tela inicial</p>
+      <form id="form-login">
+        <div class="adm-campo">
+          <label for="senha">Senha do painel</label>
+          <input type="password" id="senha" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="adm-btn primario" id="btn-entrar" style="width:100%">Entrar</button>
+        <p class="adm-msg-erro" id="login-erro"></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===== PAINEL ===== -->
+  <div id="tela-painel" class="adm-wrap" style="display:none">
+    <div class="adm-topbar">
+      <span class="adm-titulo">🎛️ Painel do site</span>
+      <a class="adm-btn" href="./" target="_blank" rel="noopener">Ver site ↗</a>
+      <button class="adm-btn perigo" id="btn-descartar">↩ Descartar</button>
+      <button class="adm-btn primario" id="btn-salvar">💾 Salvar e publicar</button>
+      <span class="adm-status" id="status">Carregando…</span>
+    </div>
+
+    <div class="adm-card" id="sec-aviso">
+      <h2>🚧 Aviso inicial</h2>
+      <p class="adm-sub">Aparece por cima do site assim que a pessoa abre a página.</p>
+      <div id="aviso-campos"></div>
+    </div>
+
+    <div class="adm-card" id="sec-cabecalho">
+      <h2>✏️ Título e descrição do topo</h2>
+      <p class="adm-sub">O texto que aparece acima dos boxes.</p>
+      <div id="cabecalho-campos"></div>
+    </div>
+
+    <div class="adm-card">
+      <h2>🧩 Boxes da tela inicial</h2>
+      <p class="adm-sub">Arraste pelo ☰ (ou use ↑ ↓) para mudar a ordem. O 👁 esconde sem apagar.</p>
+      <div id="lista-boxes"></div>
+      <div class="adm-add-row">
+        <button class="adm-btn" id="btn-add-simples">+ Box simples</button>
+        <button class="adm-btn" id="btn-add-botoes">+ Box com botões</button>
+      </div>
+    </div>
+
+    <div class="adm-card">
+      <h2>📢 Avisos coloridos</h2>
+      <p class="adm-sub">Os avisos que ficam embaixo dos boxes.</p>
+      <div id="lista-alertas"></div>
+      <div class="adm-add-row">
+        <button class="adm-btn" id="btn-add-alerta">+ Aviso</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="site-render.js"></script>
+  <script src="admin.js"></script>
+</body>
+
+</html>
