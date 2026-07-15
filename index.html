@@ -521,10 +521,7 @@
             </div>
           </form>
 
-          <!-- Mensagem de feedback -->
-          <div id="mensagem" class="msg" style="display:none;" role="status" aria-live="polite"></div>
-
-          <!-- Botão WhatsApp -->
+          <!-- Botão WhatsApp (vem PRIMEIRO para o paciente não perder a confirmação) -->
           <div id="whatsapp-container" class="whatsapp-container" style="display:none;">
             <div class="whatsapp-alert">
               <div class="alert-icon">⚠️</div>
@@ -544,6 +541,9 @@
               <span class="btn-text">Confirmar no WhatsApp</span>
             </a>
           </div>
+
+          <!-- Mensagem de feedback -->
+          <div id="mensagem" class="msg" style="display:none;" role="status" aria-live="polite"></div>
         </div>
       </div>
 
