@@ -168,8 +168,9 @@ function bookSlot(bookingData) {
     }
 
     // 3) Consome a vaga e registra o agendamento
+    // Colunas da aba Agendamentos: Timestamp | Data | Hora | Nome | Motivo | Telefone
     removerVagaComVerificacao(sheetHor, vaga);
-    sheetAg.appendRow([new Date(), vaga.data, vaga.hora, nome, dataNascimento, observacoes, telefone]);
+    sheetAg.appendRow([new Date(), vaga.data, vaga.hora, nome, observacoes, telefone]);
 
     // 4) Triagem — não-crítico: erro aqui não desfaz o agendamento
     try {
