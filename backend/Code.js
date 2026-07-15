@@ -170,10 +170,10 @@ function bookSlot(bookingData) {
     // 3) Consome a vaga e registra o agendamento.
     // A nova linha entra SEMPRE NO TOPO (logo abaixo do cabeçalho), para o
     // agendamento mais recente aparecer primeiro.
-    // Colunas da aba Agendamentos: Timestamp | Data | Hora | Nome | Motivo | Telefone
+    // Colunas: Timestamp | Data | Hora | Nome | Data de Nascimento | Motivo | Telefone
     removerVagaComVerificacao(sheetHor, vaga);
     sheetAg.insertRowBefore(2);
-    sheetAg.getRange(2, 1, 1, 6).setValues([[new Date(), vaga.data, vaga.hora, nome, observacoes, telefone]]);
+    sheetAg.getRange(2, 1, 1, 7).setValues([[new Date(), vaga.data, vaga.hora, nome, dataNascimento, observacoes, telefone]]);
 
     // 4) Triagem — não-crítico: erro aqui não desfaz o agendamento
     try {
@@ -550,24 +550,25 @@ function registrarTriagem(dataConsulta, horaConsulta, dados, profissional) {
   ]);
 }
 
-// ====== MIGRAÇÃO DA ABA AGENDAMENTOS (EXECUTAR UMA VEZ) ======
+// ====== RESTAURAR COLUNA DE DATA DE NASCIMENTO (EXECUTAR UMA VEZ) ======
 
 /**
- * Arruma as linhas ANTIGAS da aba Agendamentos para o formato novo.
+ * Reposiciona as linhas da aba Agendamentos para o formato COM a coluna de
+ * Data de Nascimento depois do Nome:
  *
- *   Antigo: Timestamp | Data | Hora | Nome | Data Nasc. | Motivo | Telefone
- *   Novo:   Timestamp | Data | Hora | Nome | Motivo     | Telefone
+ *   Sem DN: Timestamp | Data | Hora | Nome | Motivo | Telefone
+ *   Final:  Timestamp | Data | Hora | Nome | DN     | Motivo   | Telefone
  *
- * COMO EXECUTAR: no editor do Apps Script, escolha "migrarAbaAgendamentos"
- * na barra de cima e clique em Executar. Rode UMA VEZ só.
+ * Serve para desfazer a migração anterior (que tinha removido a DN):
+ * Motivo e Telefone voltam uma coluna para a direita. A DN das linhas que
+ * passaram pela migração antiga não tem como ser recuperada aqui (ela fica
+ * em branco nessas linhas — mas continua registrada na agenda do posto).
  *
- * - Linhas antigas: a data de nascimento (coluna E) é descartada e
- *   Motivo/Telefone sobem uma coluna.
- * - Linhas que já estão no formato novo são detectadas e não são tocadas
- *   (dá para rodar de novo sem estragar nada).
- * - O cabeçalho é atualizado.
+ * COMO EXECUTAR: no editor do Apps Script, escolha "restaurarColunaDN" na
+ * barra de cima e clique em Executar. Rode UMA VEZ só (mas é seguro rodar
+ * de novo: linhas já no formato final não são tocadas).
  */
-function migrarAbaAgendamentos() {
+function restaurarColunaDN() {
   const lock = LockService.getScriptLock();
   lock.waitLock(30 * 1000);
   try {
@@ -575,12 +576,14 @@ function migrarAbaAgendamentos() {
     const sheet = ss.getSheetByName(SHEET_AGENDAMENTOS);
     if (!sheet) throw new Error('Aba "' + SHEET_AGENDAMENTOS + '" não encontrada.');
 
-    // Cabeçalho novo (limpa o G1, que era o Telefone antigo)
-    sheet.getRange(1, 1, 1, 7).setValues([['Timestamp', 'Data', 'Hora', 'Nome', 'Motivo', 'Telefone', '']]);
+    // Cabeçalho final, com a DN de volta
+    sheet.getRange(1, 1, 1, 7).setValues([
+      ['Timestamp', 'Data', 'Hora', 'Nome', 'Data de Nascimento', 'Motivo', 'Telefone']
+    ]);
 
     const lastRow = sheet.getLastRow();
-    let migradas = 0;
-    let jaNovas = 0;
+    let ajustadas = 0;
+    let jaCertas = 0;
 
     if (lastRow >= 2) {
       const valores = sheet.getRange(2, 1, lastRow - 1, 7).getValues();
@@ -591,29 +594,29 @@ function migrarAbaAgendamentos() {
         const colF = (display[i][5] || '').toString().trim(); // 6ª coluna
         const colG = (display[i][6] || '').toString().trim(); // 7ª coluna
 
-        // No formato antigo a coluna E era a data de nascimento
+        // No formato final a coluna E é a DN (uma data) ou está vazia.
         const pareceDataNascimento =
           valores[i][4] instanceof Date || /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(colE);
 
-        // É formato antigo se: tem telefone na G, ou a E parece data de
-        // nascimento, ou a E está vazia mas a F tem o motivo
-        const formatoAntigo = colG !== '' || pareceDataNascimento || (colE === '' && colF !== '');
+        // Formato "sem DN" (precisa ajustar): a E tem o MOTIVO (texto que não
+        // é data) e a G está vazia (o telefone estava na F).
+        const precisaAjustar = colE !== '' && !pareceDataNascimento && colG === '';
 
-        if (!formatoAntigo) {
-          jaNovas++;
+        if (!precisaAjustar) {
+          jaCertas++;
           continue;
         }
 
-        const motivo = valores[i][5];   // F antiga
-        const telefone = valores[i][6]; // G antiga
-        sheet.getRange(i + 2, 5, 1, 3).setValues([[motivo, telefone, '']]);
-        migradas++;
+        const motivo = valores[i][4];   // E atual
+        const telefone = valores[i][5]; // F atual
+        sheet.getRange(i + 2, 5, 1, 3).setValues([['', motivo, telefone]]);
+        ajustadas++;
       }
     }
 
     SpreadsheetApp.flush();
-    const resumo = 'Migração concluída: ' + migradas + ' linha(s) arrumada(s); ' +
-      jaNovas + ' já estava(m) no formato novo.';
+    const resumo = 'Restauração concluída: ' + ajustadas + ' linha(s) ajustada(s); ' +
+      jaCertas + ' já estava(m) no formato final.';
     Logger.log(resumo);
     return resumo;
   } finally {
