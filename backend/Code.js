@@ -19,6 +19,9 @@ const SHEET_TRIAGEM_ID = '1Ih-PMnTW698l-pqJks69qBn0QOQXSH3ZfcJKY6YhvOA';
 
 const PALAVRA_RESERVADO = 'reservado';
 
+// Aba onde fica a configuração da tela inicial (editada pelo painel /admin.html)
+const ABA_CONFIG = 'Config';
+
 // Estruturas de colunas na agenda do posto, por origem:
 // F = médico     (hora na E, "reservado" na F; escreve marcador na D e nome/DN/motivo em F-H)
 // O = enfermeira (hora na N, "reservado" na O; escreve marcador na M e nome/DN/motivo em O-Q)
@@ -30,13 +33,18 @@ const ESTRUTURAS_POSTO = {
 // ====== ENDPOINTS (API) ======
 
 /**
- * GET ?action=getSlots -> lista de horários LIVRES em JSON
+ * GET ?action=getSlots  -> lista de horários LIVRES em JSON
+ * GET ?action=getConfig -> configuração da tela inicial (ou null se não houver)
  */
 function doGet(e) {
   const action = e && e.parameter && e.parameter.action;
 
   if (action === 'getSlots') {
     return respostaJson(getAvailableSlots());
+  }
+
+  if (action === 'getConfig') {
+    return respostaJson(lerConfig());
   }
 
   return respostaJson({ error: 'Ação inválida' });
@@ -53,7 +61,13 @@ function doPost(e) {
   let res;
   try {
     const data = JSON.parse(e.postData.contents);
-    res = bookSlot(data);
+    if (data && data.action === 'verificarSenha') {
+      res = verificarSenhaAdmin(data);
+    } else if (data && data.action === 'saveConfig') {
+      res = salvarConfig(data);
+    } else {
+      res = bookSlot(data);
+    }
   } catch (erro) {
     Logger.log('❌ Erro no doPost: ' + erro.message + '\n' + (erro.stack || ''));
     res = {
@@ -548,6 +562,105 @@ function registrarTriagem(dataConsulta, horaConsulta, dados, profissional) {
     triagem.ultimaConsultaMeses || '',
     triagem.tipo === 'puericultura' ? (triagem.ultimoProfissional || '') : ''
   ]);
+}
+
+// ====== CONFIGURAÇÃO DA TELA INICIAL (painel /admin.html) ======
+
+/**
+ * DEFINA A SENHA DO PAINEL (EXECUTAR UMA VEZ):
+ * 1. Troque 'COLOQUE-A-SENHA-AQUI' pela senha que a equipe vai usar.
+ * 2. Execute esta função (Executar > definirSenhaAdmin).
+ * 3. DEPOIS APAGUE a senha daqui de dentro e salve de novo (ela fica
+ *    guardada em segurança nas propriedades do script, fora do código).
+ */
+function definirSenhaAdmin() {
+  const NOVA_SENHA = 'COLOQUE-A-SENHA-AQUI';
+  if (NOVA_SENHA === 'COLOQUE-A-SENHA-AQUI') {
+    throw new Error('Edite a função e troque COLOQUE-A-SENHA-AQUI pela senha desejada antes de executar.');
+  }
+  PropertiesService.getScriptProperties().setProperty('ADMIN_SENHA', NOVA_SENHA);
+  Logger.log('✅ Senha do painel definida. Agora apague a senha do código e salve.');
+}
+
+function senhaAdminConfere(senha) {
+  const salva = PropertiesService.getScriptProperties().getProperty('ADMIN_SENHA');
+  return !!salva && !!senha && senha.toString() === salva;
+}
+
+/** Login do painel: confere a senha sem revelar nada além de sim/não. */
+function verificarSenhaAdmin(data) {
+  const configurada = !!PropertiesService.getScriptProperties().getProperty('ADMIN_SENHA');
+  if (!configurada) {
+    return {
+      sucesso: false,
+      configurada: false,
+      mensagem: 'A senha do painel ainda não foi configurada. Rode definirSenhaAdmin() no editor do Apps Script.'
+    };
+  }
+  if (!senhaAdminConfere(data.senha)) {
+    return { sucesso: false, configurada: true, mensagem: 'Senha incorreta.' };
+  }
+  return { sucesso: true, configurada: true };
+}
+
+/** Lê a configuração da tela inicial (JSON na aba Config). Retorna null se não houver. */
+function lerConfig() {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const sheet = ss.getSheetByName(ABA_CONFIG);
+  if (!sheet) return null;
+  const texto = (sheet.getRange(2, 1).getValue() || '').toString();
+  if (!texto) return null;
+  try {
+    return JSON.parse(texto);
+  } catch (erro) {
+    Logger.log('❌ Config inválida na planilha: ' + erro.message);
+    return null;
+  }
+}
+
+/**
+ * Salva a configuração enviada pelo painel (exige senha).
+ * Guarda também a versão anterior na coluna B, como backup de um passo.
+ */
+function salvarConfig(data) {
+  if (!senhaAdminConfere(data.senha)) {
+    return { sucesso: false, mensagem: 'Senha incorreta. A configuração NÃO foi salva.' };
+  }
+
+  const config = data.config;
+  if (!config || typeof config !== 'object' || !Array.isArray(config.boxes) || !Array.isArray(config.alertas)) {
+    return { sucesso: false, mensagem: 'Configuração inválida.' };
+  }
+
+  const texto = JSON.stringify(config);
+  if (texto.length > 100000) {
+    return { sucesso: false, mensagem: 'Configuração grande demais.' };
+  }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30 * 1000);
+  try {
+    const ss = SpreadsheetApp.openById(SHEET_ID);
+    let sheet = ss.getSheetByName(ABA_CONFIG);
+    if (!sheet) {
+      sheet = ss.insertSheet(ABA_CONFIG);
+      sheet.getRange(1, 1, 1, 3).setValues([[
+        'NÃO EDITE ESTA ABA MANUALMENTE — use o painel do site (/admin.html)',
+        'Backup anterior',
+        'Última alteração'
+      ]]);
+    }
+
+    const anterior = (sheet.getRange(2, 1).getValue() || '').toString();
+    if (anterior) sheet.getRange(2, 2).setValue(anterior);
+    sheet.getRange(2, 1).setValue(texto);
+    sheet.getRange(2, 3).setValue(new Date());
+
+    SpreadsheetApp.flush();
+    return { sucesso: true, mensagem: 'Configuração publicada!' };
+  } finally {
+    try { lock.releaseLock(); } catch (ignorado) {}
+  }
 }
 
 // ====== RESTAURAR COLUNA DE DATA DE NASCIMENTO (EXECUTAR UMA VEZ) ======
