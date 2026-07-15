@@ -131,6 +131,29 @@ document.addEventListener('click', function(e) {
 })();
 
 // ============================================
+// CONTEÚDO EDITÁVEL DA TELA INICIAL (painel /admin.html)
+// ============================================
+
+/**
+ * Busca a configuração salva na aba "Config" e reconstrói a tela inicial.
+ * Se não houver configuração (ou a busca falhar), o conteúdo padrão do HTML
+ * permanece na tela — o site nunca fica em branco.
+ */
+async function carregarConfigSite() {
+  try {
+    const resp = await fetch(API_URL + '?action=getConfig', { method: 'GET', cache: 'no-cache' });
+    if (!resp.ok) return;
+    const cfg = await resp.json();
+    if (cfg && Array.isArray(cfg.boxes)) {
+      aplicarConfigNaPagina(cfg);
+      console.log('✅ Tela inicial montada a partir da configuração do painel');
+    }
+  } catch (err) {
+    console.warn('Configuração não carregada; mantendo conteúdo padrão.', err);
+  }
+}
+
+// ============================================
 // PROGRESS STEPS
 // ============================================
 function updateProgressSteps(step) {
@@ -834,28 +857,30 @@ document.addEventListener('DOMContentLoaded', function () {
     form.addEventListener('submit', enviarAgendamento);
   }
 
-  // Event listeners para botões da intro
-  const btnAgendar = document.querySelectorAll('[data-action="agendar"]');
-  btnAgendar.forEach(btn => {
-    btn.addEventListener('click', (e) => {
+  // Botões da intro por DELEGAÇÃO: os boxes podem ser reconstruídos pela
+  // configuração do painel, então o listener fica no documento e continua
+  // funcionando para os elementos novos.
+  document.addEventListener('click', (e) => {
+    const agendar = e.target.closest('[data-action="agendar"]');
+    if (agendar) {
       e.preventDefault();
       if (AGENDAMENTO_TEMPORARIAMENTE_DESATIVADO) {
         mostrarAvisoAgendamentoDesativado();
         return;
       }
       mostrarFormulario(true);
-    });
+      return;
+    }
+
+    const pueripre = e.target.closest('[data-action="pueripre"]');
+    if (pueripre && AGENDAMENTO_TEMPORARIAMENTE_DESATIVADO) {
+      e.preventDefault();
+      mostrarAvisoAgendamentoDesativado();
+    }
   });
 
-  const linksPueripre = document.querySelectorAll('[data-action="pueripre"]');
-  linksPueripre.forEach(link => {
-    link.addEventListener('click', (e) => {
-      if (AGENDAMENTO_TEMPORARIAMENTE_DESATIVADO) {
-        e.preventDefault();
-        mostrarAvisoAgendamentoDesativado();
-      }
-    });
-  });
+  // 🎛️ Conteúdo editável da tela inicial (painel /admin.html)
+  carregarConfigSite();
 
   const btnVoltar = document.querySelectorAll('[data-action="voltar"]');
   btnVoltar.forEach(btn => {
