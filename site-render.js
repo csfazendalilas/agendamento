@@ -208,6 +208,7 @@ function construirBoxBotoes(box) {
 
 /** Monta o elemento de UM box (usado no site e nos previews do painel). */
 function construirBox(box) {
+  if (box.tipo === 'aviso') return construirAlerta(box); // aviso colorido posicionado entre os boxes
   return box.tipo === 'botoes' ? construirBoxBotoes(box) : construirBoxSimples(box);
 }
 
