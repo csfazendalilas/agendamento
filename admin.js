@@ -162,9 +162,15 @@ $('btn-salvar').addEventListener('click', async () => {
     const res = await chamarApi({ action: 'saveConfig', senha: senhaAtual, config: cfg });
     if (res && res.sucesso) {
       sujo = false;
-      const agora = new Date();
-      definirStatus('✅ Publicado às ' + agora.toLocaleTimeString('pt-BR').slice(0, 5) +
-        ' — já está no ar para os pacientes.', 'ok');
+      const hora = new Date().toLocaleTimeString('pt-BR').slice(0, 5);
+      if (res.copiaRapida === false) {
+        definirStatus('✅ Publicado às ' + hora + ' no servidor. ⚠️ A cópia rápida do site NÃO foi ' +
+          'atualizada — configure o token do GitHub (função definirTokenGithub no Apps Script) ' +
+          'para o aviso inicial aparecer instantaneamente.', 'sujo');
+      } else {
+        definirStatus('✅ Publicado às ' + hora + ' — o servidor já responde a versão nova; ' +
+          'a cópia rápida propaga em ~1 minuto.', 'ok');
+      }
     } else {
       definirStatus('❌ ' + ((res && res.mensagem) || 'Não foi possível publicar.'), 'erro');
     }
