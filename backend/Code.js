@@ -603,15 +603,29 @@ function verificarSenhaAdmin(data) {
   return { sucesso: true, configurada: true };
 }
 
-/** Lê a configuração da tela inicial (JSON na aba Config). Retorna null se não houver. */
+/**
+ * Lê a configuração da tela inicial. Usa o CacheService (memória rápida,
+ * atualizada a cada publicação) para não abrir a planilha em toda visita —
+ * isso corta ~0,5–1,5s do tempo de resposta do getConfig.
+ */
 function lerConfig() {
+  const cache = CacheService.getScriptCache();
+  const emCache = cache.get('configSite');
+  if (emCache) {
+    try {
+      return JSON.parse(emCache);
+    } catch (ignorado) {}
+  }
+
   const ss = SpreadsheetApp.openById(SHEET_ID);
   const sheet = ss.getSheetByName(ABA_CONFIG);
   if (!sheet) return null;
   const texto = (sheet.getRange(2, 1).getValue() || '').toString();
   if (!texto) return null;
   try {
-    return JSON.parse(texto);
+    const config = JSON.parse(texto);
+    cache.put('configSite', texto, 21600); // 6h; renovado a cada leitura da planilha
+    return config;
   } catch (erro) {
     Logger.log('❌ Config inválida na planilha: ' + erro.message);
     return null;
@@ -657,9 +671,101 @@ function salvarConfig(data) {
     sheet.getRange(2, 3).setValue(new Date());
 
     SpreadsheetApp.flush();
-    return { sucesso: true, mensagem: 'Configuração publicada!' };
+    CacheService.getScriptCache().put('configSite', texto, 21600);
+
+    // Cópia rápida dentro do próprio site (GitHub Pages): faz o aviso inicial
+    // aparecer na primeira pintura da página. Não-crítico: se falhar (ex.:
+    // token não configurado), a publicação continua valendo pelo servidor.
+    let copiaRapida = false;
+    let avisoCopia = '';
+    try {
+      publicarConfigNoGitHub(texto);
+      copiaRapida = true;
+    } catch (erroGit) {
+      Logger.log('⚠️ Cópia rápida (config.json) não atualizada: ' + erroGit.message);
+      avisoCopia = ' Atenção: a cópia rápida do site não foi atualizada (' + erroGit.message + ').';
+    }
+
+    return {
+      sucesso: true,
+      copiaRapida: copiaRapida,
+      mensagem: copiaRapida
+        ? 'Configuração publicada! O servidor já responde a versão nova; a cópia rápida do site propaga em ~1 minuto.'
+        : 'Configuração publicada no servidor!' + avisoCopia
+    };
   } finally {
     try { lock.releaseLock(); } catch (ignorado) {}
+  }
+}
+
+// ====== CÓPIA RÁPIDA NO GITHUB PAGES ======
+
+/**
+ * DEFINA O TOKEN DO GITHUB (EXECUTAR UMA VEZ):
+ * 1. No GitHub: Settings > Developer settings > Personal access tokens >
+ *    Fine-grained tokens > Generate new token.
+ *    - Repository access: Only select repositories > csfazendalilas/agendamento
+ *    - Permissions > Repository permissions > Contents: Read and write
+ * 2. Troque 'COLOQUE-O-TOKEN-AQUI' pelo token gerado (começa com github_pat_).
+ * 3. Execute esta função (Executar > definirTokenGithub).
+ * 4. DEPOIS APAGUE o token daqui de dentro e salve de novo.
+ */
+function definirTokenGithub() {
+  const NOVO_TOKEN = 'COLOQUE-O-TOKEN-AQUI';
+  if (NOVO_TOKEN === 'COLOQUE-O-TOKEN-AQUI') {
+    throw new Error('Edite a função e troque COLOQUE-O-TOKEN-AQUI pelo token do GitHub antes de executar.');
+  }
+  PropertiesService.getScriptProperties().setProperty('GITHUB_TOKEN', NOVO_TOKEN);
+  Logger.log('✅ Token do GitHub definido. Agora apague o token do código e salve.');
+}
+
+/**
+ * Grava a configuração como config.json no repositório do site
+ * (csfazendalilas/agendamento, branch main). O GitHub Pages serve esse
+ * arquivo na mesma origem do site — leitura em ~100ms na primeira pintura.
+ */
+function publicarConfigNoGitHub(texto) {
+  const token = PropertiesService.getScriptProperties().getProperty('GITHUB_TOKEN');
+  if (!token) {
+    throw new Error('token do GitHub não configurado — rode definirTokenGithub()');
+  }
+
+  const url = 'https://api.github.com/repos/csfazendalilas/agendamento/contents/config.json';
+  const cabecalhos = {
+    'Authorization': 'Bearer ' + token,
+    'Accept': 'application/vnd.github+json'
+  };
+
+  // Busca o sha atual do arquivo (necessário para atualizar; 404 = criar)
+  let sha = null;
+  const respGet = UrlFetchApp.fetch(url + '?ref=main', {
+    headers: cabecalhos,
+    muteHttpExceptions: true
+  });
+  if (respGet.getResponseCode() === 200) {
+    sha = JSON.parse(respGet.getContentText()).sha;
+  } else if (respGet.getResponseCode() !== 404) {
+    throw new Error('GitHub respondeu ' + respGet.getResponseCode() + ' ao consultar o config.json');
+  }
+
+  const corpo = {
+    message: 'Atualiza config.json via painel de administração',
+    content: Utilities.base64Encode(texto, Utilities.Charset.UTF_8),
+    branch: 'main'
+  };
+  if (sha) corpo.sha = sha;
+
+  const respPut = UrlFetchApp.fetch(url, {
+    method: 'put',
+    headers: cabecalhos,
+    contentType: 'application/json',
+    payload: JSON.stringify(corpo),
+    muteHttpExceptions: true
+  });
+
+  const codigo = respPut.getResponseCode();
+  if (codigo !== 200 && codigo !== 201) {
+    throw new Error('GitHub respondeu ' + codigo + ' ao gravar o config.json');
   }
 }
 
