@@ -278,7 +278,25 @@ function aplicarConfigNaPagina(cfg) {
 function mostrarAvisoInicial(aviso) {
   const existente = document.getElementById('modal-aviso-admin');
   if (existente) existente.remove();
-  if (!aviso || !aviso.ativo) return;
+
+  const pageWrapper = document.querySelector('.page-wrapper');
+
+  if (!aviso || !aviso.ativo) {
+    // Aviso desligado: garante que nada ficou travado (ex.: o cache mostrou
+    // um aviso bloqueante que acabou de ser desativado no servidor)
+    document.body.style.overflow = '';
+    if (pageWrapper && pageWrapper.style.display === 'none') pageWrapper.style.display = '';
+    return;
+  }
+
+  // A configuração é aplicada duas vezes (cache instantâneo e depois a versão
+  // do servidor). Se a pessoa já fechou o aviso nesta visita, não reabre.
+  if (!aviso.bloqueante && window.__avisoInicialFechado) return;
+
+  // Aviso não-bloqueante substituindo um bloqueante do cache: devolve a página
+  if (!aviso.bloqueante && pageWrapper && pageWrapper.style.display === 'none') {
+    pageWrapper.style.display = '';
+  }
 
   const overlay = el('div', '');
   overlay.id = 'modal-aviso-admin';
@@ -299,13 +317,13 @@ function mostrarAvisoInicial(aviso) {
 
   if (aviso.bloqueante) {
     document.body.style.overflow = 'hidden';
-    const pageWrapper = document.querySelector('.page-wrapper');
     if (pageWrapper) pageWrapper.style.display = 'none';
   } else {
     const botao = el('button', '', [aviso.botao || 'Entendi']);
     botao.style.cssText = 'margin-top:16px;padding:12px 32px;border:none;border-radius:10px;' +
       'background:#5849a0;color:#fff;font-size:1em;font-weight:600;cursor:pointer;';
     botao.addEventListener('click', () => {
+      window.__avisoInicialFechado = true; // lembra o fechamento nesta visita
       overlay.remove();
       document.body.style.overflow = '';
     });
