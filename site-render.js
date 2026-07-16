@@ -298,33 +298,38 @@ function mostrarAvisoInicial(aviso) {
     pageWrapper.style.display = '';
   }
 
-  const overlay = el('div', '');
+  garantirEstiloAviso();
+
+  const overlay = el('div', 'aviso-ini-overlay' + (aviso.bloqueante ? ' aviso-ini-bloqueante' : ''));
   overlay.id = 'modal-aviso-admin';
-  overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;display:flex;align-items:center;' +
-    'justify-content:center;padding:20px;background:linear-gradient(135deg, rgba(88,73,160,.96) 0%, rgba(60,45,120,.98) 100%);';
 
-  const caixa = el('div', '');
-  caixa.style.cssText = 'background:#fff;border-radius:16px;max-width:440px;width:100%;' +
-    'padding:28px 24px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35);';
+  const caixa = el('div', 'aviso-ini-card');
+  caixa.setAttribute('role', 'alertdialog');
+  caixa.setAttribute('aria-live', 'assertive');
 
-  const titulo = el('div', '', [aviso.titulo || '⚠️ Aviso']);
-  titulo.style.cssText = 'font-size:1.3em;font-weight:700;margin-bottom:12px;color:#1e293b;';
-  caixa.appendChild(titulo);
+  // Detalhes decorativos (brilho no topo + bolha suave atrás do ícone)
+  caixa.appendChild(el('div', 'aviso-ini-brilho'));
+  caixa.appendChild(el('div', 'aviso-ini-blob'));
 
-  const texto = el('div', '', [textoFormatado(aviso.texto || '')]);
-  texto.style.cssText = 'color:#475569;line-height:1.6;margin-bottom:8px;text-align:left;';
+  // Se o título começa com emoji, ele vira o ícone em destaque
+  const { emoji, resto } = separarEmojiDoTitulo(aviso.titulo);
+  caixa.appendChild(el('div', 'aviso-ini-icone', [emoji]));
+  caixa.appendChild(el('div', 'aviso-ini-pill', ['Aviso · Equipe Lilás']));
+  caixa.appendChild(el('h2', 'aviso-ini-titulo', [resto]));
+
+  const texto = el('div', 'aviso-ini-texto', [textoFormatado(aviso.texto || '')]);
   caixa.appendChild(texto);
 
   if (aviso.bloqueante) {
     document.body.style.overflow = 'hidden';
     if (pageWrapper) pageWrapper.style.display = 'none';
   } else {
-    const botao = el('button', '', [aviso.botao || 'Entendi']);
-    botao.style.cssText = 'margin-top:16px;padding:12px 32px;border:none;border-radius:10px;' +
-      'background:#5849a0;color:#fff;font-size:1em;font-weight:600;cursor:pointer;';
+    const botao = el('button', 'aviso-ini-botao', [aviso.botao || 'Entendi']);
+    botao.type = 'button';
     botao.addEventListener('click', () => {
       window.__avisoInicialFechado = true; // lembra o fechamento nesta visita
-      overlay.remove();
+      overlay.classList.add('aviso-ini-saindo');
+      setTimeout(() => overlay.remove(), 180);
       document.body.style.overflow = '';
     });
     caixa.appendChild(botao);
@@ -333,4 +338,120 @@ function mostrarAvisoInicial(aviso) {
 
   overlay.appendChild(caixa);
   document.body.appendChild(overlay);
+}
+
+/**
+ * Extrai o emoji inicial do título para usá-lo como ícone em destaque.
+ * (RegExp construída em tempo de execução para não quebrar navegadores
+ * antigos que não entendem \p{...} — nesses, cai no padrão 📣.)
+ */
+function separarEmojiDoTitulo(titulo) {
+  const textoTitulo = (titulo || '').toString().trim();
+  try {
+    const re = new RegExp('^([\\p{Extended_Pictographic}\\u200d\\ufe0f]+)\\s*', 'u');
+    const m = textoTitulo.match(re);
+    if (m) {
+      return { emoji: m[1], resto: textoTitulo.slice(m[0].length) || 'Aviso' };
+    }
+  } catch (ignorado) {}
+  return { emoji: '📣', resto: textoTitulo || 'Aviso' };
+}
+
+/** Injeta (uma vez) o estilo do aviso inicial. */
+function garantirEstiloAviso() {
+  if (document.getElementById('estilo-aviso-inicial')) return;
+  const estilo = document.createElement('style');
+  estilo.id = 'estilo-aviso-inicial';
+  estilo.textContent = `
+    .aviso-ini-overlay {
+      position: fixed; inset: 0; z-index: 10000;
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+      background: rgba(49, 38, 92, 0.42);
+      -webkit-backdrop-filter: blur(12px) saturate(1.15);
+      backdrop-filter: blur(12px) saturate(1.15);
+      animation: avisoIniFade .25s ease-out;
+    }
+    /* Navegadores sem desfoque: fundo mais fechado para manter a leitura */
+    @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+      .aviso-ini-overlay { background: rgba(49, 38, 92, 0.82); }
+    }
+    .aviso-ini-bloqueante {
+      background: linear-gradient(150deg, rgba(88, 73, 160, .55) 0%, rgba(49, 38, 92, .62) 100%);
+    }
+    .aviso-ini-card {
+      position: relative; overflow: hidden;
+      max-width: 420px; width: 100%;
+      padding: 30px 26px 26px;
+      text-align: center;
+      background: rgba(255, 255, 255, 0.94);
+      -webkit-backdrop-filter: blur(20px);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.75);
+      border-radius: 24px;
+      box-shadow: 0 24px 70px rgba(49, 38, 92, 0.45), 0 2px 10px rgba(49, 38, 92, 0.18);
+      animation: avisoIniPop .38s cubic-bezier(.2, 1.1, .3, 1);
+    }
+    .aviso-ini-brilho {
+      position: absolute; top: 0; left: 24px; right: 24px; height: 3px;
+      border-radius: 0 0 6px 6px;
+      background: linear-gradient(90deg, transparent, #9381ff 30%, #f9a8d4 70%, transparent);
+    }
+    .aviso-ini-blob {
+      position: absolute; top: -70px; left: 50%; transform: translateX(-50%);
+      width: 220px; height: 190px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(147, 129, 255, .18) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .aviso-ini-icone {
+      position: relative;
+      width: 64px; height: 64px; margin: 0 auto 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 30px; line-height: 1;
+      background: linear-gradient(135deg, #f6f5fc 0%, #e8e5f8 100%);
+      border: 1px solid rgba(147, 129, 255, .35);
+      border-radius: 20px;
+      box-shadow: 0 8px 22px rgba(147, 129, 255, .28);
+    }
+    .aviso-ini-pill {
+      display: inline-block; margin-bottom: 10px;
+      padding: 4px 12px;
+      font-size: .68em; font-weight: 700; letter-spacing: .8px; text-transform: uppercase;
+      color: #7b6cce; background: rgba(147, 129, 255, .12);
+      border: 1px solid rgba(147, 129, 255, .25);
+      border-radius: 999px;
+    }
+    .aviso-ini-titulo {
+      margin: 0 0 12px; font-size: 1.35em; font-weight: 700; color: #1e293b;
+      line-height: 1.3;
+    }
+    .aviso-ini-texto {
+      color: #475569; line-height: 1.65; text-align: left;
+      font-size: .97em;
+    }
+    .aviso-ini-texto strong { color: #37306b; }
+    .aviso-ini-botao {
+      margin-top: 20px; width: 100%;
+      padding: 14px 32px;
+      border: none; border-radius: 14px; cursor: pointer;
+      font-family: inherit; font-size: 1em; font-weight: 700; color: #fff;
+      background: linear-gradient(135deg, #9381ff 0%, #7b6cce 100%);
+      box-shadow: 0 10px 24px rgba(147, 129, 255, .45);
+      transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+    }
+    .aviso-ini-botao:hover { filter: brightness(1.06); transform: translateY(-1px); box-shadow: 0 14px 28px rgba(147, 129, 255, .5); }
+    .aviso-ini-botao:active { transform: scale(.98); }
+    .aviso-ini-saindo { animation: avisoIniFadeOut .18s ease-in forwards; }
+    @keyframes avisoIniFade { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes avisoIniFadeOut { to { opacity: 0; } }
+    @keyframes avisoIniPop {
+      from { opacity: 0; transform: translateY(18px) scale(.94); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .aviso-ini-overlay, .aviso-ini-card, .aviso-ini-saindo { animation: none; }
+      .aviso-ini-botao { transition: none; }
+    }
+  `;
+  document.head.appendChild(estilo);
 }
