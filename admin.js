@@ -289,12 +289,34 @@ function renderLista(tipoLista, container) {
 }
 
 function nomeDoItem(tipoLista, item) {
-  if (tipoLista === 'alertas') {
+  if (tipoLista === 'alertas' || item.tipo === 'aviso') {
     const cores = { default: '⬜', danger: '🟥', success: '🟩' };
     return (cores[item.cor] || '⬜') + ' ' + (item.titulo || '(sem título)');
   }
   const tipo = item.tipo === 'botoes' ? '🔘' : (item.acao === 'agendar' ? '📅' : '🧩');
   return tipo + ' ' + (item.titulo || '(sem título)');
+}
+
+/**
+ * Move um item entre as duas áreas:
+ * - aviso colorido sobe para a área dos boxes (vira box tipo 'aviso', mesmo visual)
+ * - box tipo 'aviso' desce de volta para os avisos de baixo
+ */
+function cruzarDeArea(deLista, indice, indiceDestino) {
+  if (deLista === 'alertas') {
+    const [item] = cfg.alertas.splice(indice, 1);
+    item.tipo = 'aviso';
+    const destino = (indiceDestino === undefined) ? 0 : indiceDestino;
+    cfg.boxes.splice(destino, 0, item);
+  } else {
+    const [item] = cfg.boxes.splice(indice, 1);
+    delete item.tipo;
+    const destino = (indiceDestino === undefined) ? 0 : indiceDestino;
+    cfg.alertas.splice(destino, 0, item);
+  }
+  marcarSujo();
+  renderLista('boxes', $('lista-boxes'));
+  renderLista('alertas', $('lista-alertas'));
 }
 
 function construirCartaoItem(tipoLista, item, indice) {
@@ -322,6 +344,18 @@ function construirCartaoItem(tipoLista, item, indice) {
   btnDescer.title = 'Mover para baixo';
   btnDescer.addEventListener('click', () => { mover(lista, indice, indice + 1); renderLista(tipoLista, card.parentElement); });
 
+  // Botão ⇄ para cruzar de área (só para avisos coloridos)
+  let btnCruzar = null;
+  if (tipoLista === 'alertas') {
+    btnCruzar = el('button', 'adm-mini', ['⬆📦']);
+    btnCruzar.title = 'Subir para a área dos boxes (aí dá para pôr em qualquer posição, inclusive em primeiro)';
+    btnCruzar.addEventListener('click', () => cruzarDeArea('alertas', indice));
+  } else if (item.tipo === 'aviso') {
+    btnCruzar = el('button', 'adm-mini', ['⬇📢']);
+    btnCruzar.title = 'Devolver para a área dos avisos de baixo';
+    btnCruzar.addEventListener('click', () => cruzarDeArea('boxes', indice));
+  }
+
   const btnOlho = el('button', 'adm-mini' + (item.visivel === false ? '' : ' ativo'), [item.visivel === false ? '🚫' : '👁']);
   btnOlho.title = item.visivel === false ? 'Está oculto — clique para mostrar' : 'Está visível — clique para ocultar';
   btnOlho.addEventListener('click', () => {
@@ -348,7 +382,11 @@ function construirCartaoItem(tipoLista, item, indice) {
     }
   });
 
-  [btnSubir, btnDescer, btnOlho, btnEditar, btnExcluir].forEach(b => { b.type = 'button'; head.appendChild(b); });
+  [btnSubir, btnDescer, btnCruzar, btnOlho, btnEditar, btnExcluir].forEach(b => {
+    if (!b) return;
+    b.type = 'button';
+    head.appendChild(b);
+  });
   card.appendChild(head);
 
   // --- preview com a cara real do site ---
@@ -365,7 +403,7 @@ function construirCartaoItem(tipoLista, item, indice) {
   // --- editor ---
   if (editoresAbertos.has(item.id)) {
     const editor = el('div', 'adm-editor');
-    if (tipoLista === 'alertas') {
+    if (tipoLista === 'alertas' || item.tipo === 'aviso') {
       construirEditorAlerta(editor, item, atualizarPreview);
     } else if (item.tipo === 'botoes') {
       construirEditorBoxBotoes(editor, item, atualizarPreview);
@@ -393,7 +431,18 @@ function construirCartaoItem(tipoLista, item, indice) {
     card.classList.remove('alvo-drop');
     try {
       const origem = JSON.parse(e.dataTransfer.getData('text/plain'));
-      if (origem.tipoLista !== tipoLista || origem.indice === indice) return;
+
+      // Arrastar entre as áreas: só avisos coloridos podem cruzar
+      if (origem.tipoLista !== tipoLista) {
+        const itemOrigem = cfg[origem.tipoLista][origem.indice];
+        const podeCruzar =
+          (origem.tipoLista === 'alertas' && tipoLista === 'boxes') ||
+          (origem.tipoLista === 'boxes' && tipoLista === 'alertas' && itemOrigem.tipo === 'aviso');
+        if (podeCruzar) cruzarDeArea(origem.tipoLista, origem.indice, indice);
+        return;
+      }
+
+      if (origem.indice === indice) return;
       mover(lista, origem.indice, indice);
       renderLista(tipoLista, card.parentElement);
     } catch (ignorado) {}
