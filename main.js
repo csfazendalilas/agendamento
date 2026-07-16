@@ -134,10 +134,31 @@ document.addEventListener('click', function(e) {
 // CONTEÚDO EDITÁVEL DA TELA INICIAL (painel /admin.html)
 // ============================================
 
+const CHAVE_CACHE_CONFIG = 'configTelaInicial';
+
 /**
- * Busca a configuração salva na aba "Config" e reconstrói a tela inicial.
- * Se não houver configuração (ou a busca falhar), o conteúdo padrão do HTML
- * permanece na tela — o site nunca fica em branco.
+ * Aplica NA HORA a última configuração conhecida (guardada no navegador).
+ * Assim o aviso inicial e os boxes editados aparecem junto com a página,
+ * sem esperar o servidor responder.
+ */
+function aplicarConfigCacheada() {
+  try {
+    const texto = localStorage.getItem(CHAVE_CACHE_CONFIG);
+    if (!texto) return;
+    const cfg = JSON.parse(texto);
+    if (cfg && Array.isArray(cfg.boxes)) {
+      aplicarConfigNaPagina(cfg);
+      console.log('⚡ Tela inicial montada do cache local');
+    }
+  } catch (e) {
+    // cache inválido é simplesmente ignorado
+  }
+}
+
+/**
+ * Busca a configuração fresca na aba "Config", atualiza a tela e o cache.
+ * Se não houver configuração (ou a busca falhar), o que já está na tela
+ * (HTML padrão ou cache) permanece — o site nunca fica em branco.
  */
 async function carregarConfigSite() {
   try {
@@ -145,13 +166,21 @@ async function carregarConfigSite() {
     if (!resp.ok) return;
     const cfg = await resp.json();
     if (cfg && Array.isArray(cfg.boxes)) {
+      localStorage.setItem(CHAVE_CACHE_CONFIG, JSON.stringify(cfg));
       aplicarConfigNaPagina(cfg);
-      console.log('✅ Tela inicial montada a partir da configuração do painel');
+      console.log('✅ Tela inicial atualizada com a configuração do servidor');
+    } else if (cfg === null) {
+      // configuração foi apagada no servidor: limpa o cache também
+      localStorage.removeItem(CHAVE_CACHE_CONFIG);
     }
   } catch (err) {
-    console.warn('Configuração não carregada; mantendo conteúdo padrão.', err);
+    console.warn('Configuração não carregada; mantendo conteúdo atual.', err);
   }
 }
+
+// Executa IMEDIATAMENTE (o script fica no fim do body, o DOM já existe):
+// o aviso inicial do cache aparece antes de qualquer outra coisa.
+aplicarConfigCacheada();
 
 // ============================================
 // PROGRESS STEPS
