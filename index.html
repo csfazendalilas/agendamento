@@ -5,6 +5,20 @@
   <meta charset="UTF-8">
   <title>Agendamento de Consulta | Equipe Lilás - CS Fazenda</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>
+    // Consultas antecipadas da configuração da tela inicial (painel /admin.html).
+    // Disparadas ANTES de o site desenhar, para o aviso inicial aparecer na
+    // primeira pintura. O main.js consome as duas promessas.
+    // 1) Cópia rápida servida pelo próprio site (atualizada a cada publicação;
+    //    o ?v= fura o cache do CDN do GitHub Pages).
+    window.__configLocal = fetch('config.json?v=' + Date.now())
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .catch(function () { return null; });
+    // 2) Fonte da verdade (Apps Script) — mesma URL do API_URL no main.js.
+    window.__configFetch = fetch('https://script.google.com/macros/s/AKfycbzSnLgusejiDF9oCtL-xjY54TybLn91HyX3NTofToGRs9rqREqg136D2czCsSLhNrti/exec?action=getConfig', { cache: 'no-cache' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .catch(function () { return null; });
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
