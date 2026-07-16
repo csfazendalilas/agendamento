@@ -141,6 +141,7 @@ async function carregar() {
     cfg.cabecalho = cfg.cabecalho || clonar(CONFIG_PADRAO.cabecalho);
     cfg.avisoInicial = cfg.avisoInicial || clonar(CONFIG_PADRAO.avisoInicial);
     cfg.alertas = cfg.alertas || [];
+    cfg.roteamento = cfg.roteamento || clonar(CONFIG_PADRAO.roteamento);
     sujo = false;
     renderTudo();
     definirStatus(dados && dados.boxes
@@ -186,8 +187,33 @@ $('btn-descartar').addEventListener('click', () => {
 function renderTudo() {
   renderAvisoInicial();
   renderCabecalho();
+  renderRoteamento();
   renderLista('boxes', $('lista-boxes'));
   renderLista('alertas', $('lista-alertas'));
+}
+
+// ----- encaminhamento da triagem (pueripre) -----
+
+function renderRoteamento() {
+  const alvo = $('roteamento-campos');
+  alvo.innerHTML = '';
+  const rot = cfg.roteamento;
+
+  const servicos = [
+    ['prenatal', '🤰 Pré-natal', 'Automático: 1ª consulta vai para a enfermagem; depois alterna com base no último profissional.'],
+    ['puericultura', '👶 Puericultura', 'Automático: alterna com base no último profissional.'],
+    ['preventivo', '🩷 Preventivo', 'Automático: vai para a enfermagem.']
+  ];
+
+  servicos.forEach(([chave, nome, dica]) => {
+    const campo = campoSelect(nome, rot[chave] || 'auto', [
+      ['auto', 'Automático (triagem decide)'],
+      ['enfermagem', 'Sempre ENFERMAGEM'],
+      ['medico', 'Sempre MÉDICO']
+    ], (v) => { rot[chave] = v; marcarSujo(); });
+    campo.appendChild(el('div', 'adm-dica', [dica]));
+    alvo.appendChild(campo);
+  });
 }
 
 // ----- aviso inicial -----
