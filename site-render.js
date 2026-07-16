@@ -21,6 +21,14 @@ const CONFIG_PADRAO = {
     texto: '',
     botao: 'Entendi'
   },
+  // Encaminhamento da triagem do pueripre:
+  // 'auto' = a triagem decide (comportamento padrão)
+  // 'enfermagem' / 'medico' = ignora as respostas e manda sempre para lá
+  roteamento: {
+    prenatal: 'auto',
+    puericultura: 'auto',
+    preventivo: 'auto'
+  },
   boxes: [
     {
       id: 'saude-mulher', tipo: 'botoes', estilo: 'destaque', visivel: true,
