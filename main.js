@@ -134,53 +134,57 @@ document.addEventListener('click', function(e) {
 // CONTEÚDO EDITÁVEL DA TELA INICIAL (painel /admin.html)
 // ============================================
 
-const CHAVE_CACHE_CONFIG = 'configTelaInicial';
+// O conteúdo NUNCA vem de memória do navegador (nada de versão velha da
+// última visita). Duas fontes, ambas consultadas no <head> do index.html:
+// 1. window.__configLocal  — config.json servido pelo próprio site (cópia
+//    atualizada a cada "Salvar e publicar"; chega em ~100ms → primeira pintura)
+// 2. window.__configFetch  — Apps Script (fonte da verdade; chega em ~1s e
+//    SEMPRE prevalece, corrigindo a cópia se ela estiver atrasada)
+let configServidorAplicada = false;
 
-/**
- * Aplica NA HORA a última configuração conhecida (guardada no navegador).
- * Assim o aviso inicial e os boxes editados aparecem junto com a página,
- * sem esperar o servidor responder.
- */
-function aplicarConfigCacheada() {
-  try {
-    const texto = localStorage.getItem(CHAVE_CACHE_CONFIG);
-    if (!texto) return;
-    const cfg = JSON.parse(texto);
+// Limpa a chave do cache antigo (abordagem descartada)
+try { localStorage.removeItem('configTelaInicial'); } catch (e) {}
+
+// Cópia local: aplica imediatamente, só enquanto o servidor não respondeu
+if (window.__configLocal && typeof window.__configLocal.then === 'function') {
+  window.__configLocal.then((cfg) => {
+    if (configServidorAplicada) return;
     if (cfg && Array.isArray(cfg.boxes)) {
       aplicarConfigNaPagina(cfg);
-      console.log('⚡ Tela inicial montada do cache local');
+      console.log('⚡ Tela inicial montada da cópia rápida (config.json)');
     }
-  } catch (e) {
-    // cache inválido é simplesmente ignorado
-  }
+  });
 }
 
 /**
- * Busca a configuração fresca na aba "Config", atualiza a tela e o cache.
- * Se não houver configuração (ou a busca falhar), o que já está na tela
- * (HTML padrão ou cache) permanece — o site nunca fica em branco.
+ * Resposta do servidor (fonte da verdade): sempre prevalece.
+ * Se não houver configuração no servidor, volta ao conteúdo padrão — assim
+ * uma cópia local atrasada nunca fica valendo sozinha.
  */
 async function carregarConfigSite() {
   try {
-    const resp = await fetch(API_URL + '?action=getConfig', { method: 'GET', cache: 'no-cache' });
-    if (!resp.ok) return;
-    const cfg = await resp.json();
-    if (cfg && Array.isArray(cfg.boxes)) {
-      localStorage.setItem(CHAVE_CACHE_CONFIG, JSON.stringify(cfg));
-      aplicarConfigNaPagina(cfg);
-      console.log('✅ Tela inicial atualizada com a configuração do servidor');
-    } else if (cfg === null) {
-      // configuração foi apagada no servidor: limpa o cache também
-      localStorage.removeItem(CHAVE_CACHE_CONFIG);
+    let cfg;
+    if (window.__configFetch && typeof window.__configFetch.then === 'function') {
+      cfg = await window.__configFetch;
+    } else {
+      const resp = await fetch(API_URL + '?action=getConfig', { method: 'GET', cache: 'no-cache' });
+      cfg = resp.ok ? await resp.json() : undefined;
     }
+
+    if (cfg && Array.isArray(cfg.boxes)) {
+      configServidorAplicada = true;
+      aplicarConfigNaPagina(cfg);
+      console.log('✅ Tela inicial confirmada com a configuração do servidor');
+    } else if (cfg === null) {
+      // Servidor diz que não há configuração publicada: garante o padrão
+      configServidorAplicada = true;
+      aplicarConfigNaPagina(CONFIG_PADRAO);
+    }
+    // undefined (erro de rede): mantém o que está na tela
   } catch (err) {
-    console.warn('Configuração não carregada; mantendo conteúdo atual.', err);
+    console.warn('Configuração do servidor não carregada; mantendo conteúdo atual.', err);
   }
 }
-
-// Executa IMEDIATAMENTE (o script fica no fim do body, o DOM já existe):
-// o aviso inicial do cache aparece antes de qualquer outra coisa.
-aplicarConfigCacheada();
 
 // ============================================
 // PROGRESS STEPS
