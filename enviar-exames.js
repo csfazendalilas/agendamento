@@ -53,14 +53,34 @@ function lerComoBase64(arquivo) {
   });
 }
 
-async function chamarApi(corpo) {
-  const resp = await fetch(API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(corpo)
+// Faz o POST via XMLHttpRequest (em vez de fetch) para conseguir a barra de
+// progresso REAL do upload: o fetch não informa quanto do arquivo já subiu.
+// O callback aoProgredirUpload (opcional) recebe uma fração de 0 a 1 enquanto
+// o corpo da requisição está sendo enviado.
+function chamarApi(corpo, aoProgredirUpload) {
+  return new Promise((resolver, rejeitar) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', API_URL, true);
+    xhr.setRequestHeader('Content-Type', 'text/plain;charset=utf-8');
+    if (aoProgredirUpload && xhr.upload) {
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) aoProgredirUpload(e.loaded / e.total);
+      });
+    }
+    xhr.onload = () => {
+      if (xhr.status < 200 || xhr.status >= 300) {
+        rejeitar(new Error('Falha de conexão (HTTP ' + xhr.status + '). Verifique a internet e tente de novo.'));
+        return;
+      }
+      try {
+        resolver(JSON.parse(xhr.responseText));
+      } catch (e) {
+        rejeitar(new Error('Resposta inesperada do servidor. Tente de novo.'));
+      }
+    };
+    xhr.onerror = () => rejeitar(new Error('Falha de conexão. Verifique a internet e tente de novo.'));
+    xhr.send(JSON.stringify(corpo));
   });
-  if (!resp.ok) throw new Error('Falha de conexão (HTTP ' + resp.status + '). Verifique a internet e tente de novo.');
-  return resp.json();
 }
 
 // ============================================
@@ -212,10 +232,38 @@ function renderizarListaArquivos() {
 // ENVIO
 // ============================================
 
+// Estado da barra: guardamos a % atual para (1) a barra nunca voltar atrás e
+// (2) o "trickle" conseguir avançar sozinho durante as esperas. Passar texto
+// null mantém o texto anterior (usado quando só a % muda).
+let progressoAtual = 0;
+let textoAtual = '';
+let trickleTimer = null;
+
 function definirProgresso(texto, porcentagem) {
+  if (typeof texto === 'string') textoAtual = texto;
+  progressoAtual = Math.max(progressoAtual, Math.min(100, porcentagem));
+  const pct = Math.round(progressoAtual);
   $('progresso').style.display = 'block';
-  $('progresso-txt').textContent = texto;
-  $('barra').style.width = Math.min(100, Math.round(porcentagem)) + '%';
+  $('progresso-txt').textContent = pct >= 100 ? textoAtual : textoAtual + ' — ' + pct + '%';
+  $('barra').style.width = pct + '%';
+}
+
+// Enquanto esperamos algo que não dá para medir (criar a pasta, registrar na
+// planilha, ou o servidor processar um arquivo que já terminou de subir), a
+// barra avança sozinha e devagar em direção a um teto, para nunca parecer
+// travada. Ela desacelera perto do teto e nunca o ultrapassa.
+function iniciarTrickle(teto) {
+  pararTrickle();
+  trickleTimer = setInterval(() => {
+    if (progressoAtual < teto) {
+      const passo = Math.max(0.2, (teto - progressoAtual) * 0.06);
+      definirProgresso(null, progressoAtual + passo);
+    }
+  }, 200);
+}
+
+function pararTrickle() {
+  if (trickleTimer) { clearInterval(trickleTimer); trickleTimer = null; }
 }
 
 async function enviarExames(evento) {
@@ -234,10 +282,19 @@ async function enviarExames(evento) {
 
   const total = arquivosSelecionados.length;
 
+  // Faixas da barra: 0–8% preparar, 8–92% enviar os arquivos, 92–100% registrar.
+  const INICIO_ARQUIVOS = 8;
+  const FIM_ARQUIVOS = 92;
+  const FAIXA_ARQUIVOS = FIM_ARQUIVOS - INICIO_ARQUIVOS;
+
+  progressoAtual = 0; // zera caso seja uma nova tentativa após erro
+
   try {
-    // 1) Cria a pasta do envio
-    definirProgresso('Preparando envio…', 4);
+    // 1) Cria a pasta do envio (espera não mensurável → trickle)
+    definirProgresso('Preparando envio…', 2);
+    iniciarTrickle(INICIO_ARQUIVOS - 1);
     const inicio = await chamarApi({ action: 'iniciarEnvioExames', nome, dataNascimento, telefone });
+    pararTrickle();
 
     if (!inicio || inicio.sucesso !== true || !inicio.envioId) {
       const mensagemServidor = inicio && inicio.mensagem ? inicio.mensagem : '';
@@ -247,11 +304,15 @@ async function enviarExames(evento) {
         : 'O envio de exames ainda está sendo ativado pela equipe. Tente novamente mais tarde.');
     }
 
-    // 2) Sobe os arquivos um a um
+    // 2) Sobe os arquivos um a um, com a barra acompanhando o upload de verdade
     for (let i = 0; i < total; i++) {
       const arquivo = arquivosSelecionados[i];
-      definirProgresso('Enviando arquivo ' + (i + 1) + ' de ' + total + ' — ' + arquivo.name,
-        5 + (i / total) * 85);
+      const segInicio = INICIO_ARQUIVOS + (i / total) * FAIXA_ARQUIVOS;
+      const segFim = INICIO_ARQUIVOS + ((i + 1) / total) * FAIXA_ARQUIVOS;
+      const seg = segFim - segInicio;
+
+      pararTrickle();
+      definirProgresso('Enviando arquivo ' + (i + 1) + ' de ' + total + ' — ' + arquivo.name, segInicio);
 
       const conteudo = await lerComoBase64(arquivo);
       const resposta = await chamarApi({
@@ -260,15 +321,24 @@ async function enviarExames(evento) {
         nomeArquivo: arquivo.name,
         tipo: tipoDoArquivo(arquivo),
         conteudo: conteudo
+      }, (fracao) => {
+        // enquanto o arquivo sobe, preenche até 88% do trecho deste arquivo...
+        definirProgresso(null, segInicio + fracao * seg * 0.88);
+        // ...e quando termina de subir, o trickle cobre a espera do servidor
+        if (fracao >= 1 && !trickleTimer) iniciarTrickle(segInicio + seg * 0.98);
       });
+      pararTrickle();
       if (!resposta || resposta.sucesso !== true) {
         throw new Error((resposta && resposta.mensagem) || 'Falha ao enviar "' + arquivo.name + '". Tente de novo.');
       }
+      definirProgresso(null, segFim); // arquivo confirmado → fecha o trecho dele
     }
 
-    // 3) Registra na planilha da equipe
-    definirProgresso('Registrando envio…', 95);
+    // 3) Registra na planilha da equipe (espera não mensurável → trickle)
+    definirProgresso('Registrando envio…', FIM_ARQUIVOS + 1);
+    iniciarTrickle(99);
     const fim = await chamarApi({ action: 'finalizarEnvioExames', envioId: inicio.envioId, nome, dataNascimento, telefone });
+    pararTrickle();
     if (!fim || fim.sucesso !== true) {
       throw new Error((fim && fim.mensagem) || 'Não foi possível registrar o envio. Tente de novo.');
     }
@@ -300,6 +370,7 @@ async function enviarExames(evento) {
     msgDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch (erro) {
     console.error(erro);
+    pararTrickle();
     $('progresso').style.display = 'none';
     botao.disabled = false;
 
