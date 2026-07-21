@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Enviar Exames | Equipe Lilás - CS Fazenda</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* ===== estilos próprios da página de exames ===== */
+    .exm-drop {
+      border: 2px dashed var(--color-primary-light, #b8b0e8);
+      border-radius: 16px;
+      background: var(--color-primary-ghost, #f6f5fc);
+      padding: 26px 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .15s ease, background .15s ease;
+    }
+
+    .exm-drop.arrastando {
+      border-color: var(--color-primary, #9381ff);
+      background: var(--color-primary-subtle, #e8e5f8);
+    }
+
+    .exm-drop-icone { font-size: 34px; margin-bottom: 6px; }
+
+    .exm-drop strong { display: block; color: #37306b; margin-bottom: 4px; }
+
+    .exm-drop span { font-size: .85em; color: #64748b; }
+
+    .exm-lista { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+
+    .exm-arquivo {
+      display: flex; align-items: center; gap: 10px;
+      background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+      padding: 10px 12px; font-size: .9em;
+    }
+
+    .exm-arquivo .exm-nome {
+      flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      color: #1e293b; font-weight: 600;
+    }
+
+    .exm-arquivo .exm-tamanho { color: #94a3b8; font-size: .85em; white-space: nowrap; }
+
+    .exm-remover {
+      border: none; background: #fee2e2; color: #b91c1c;
+      width: 28px; height: 28px; border-radius: 8px; cursor: pointer;
+      font-weight: 700; flex: 0 0 auto;
+    }
+
+    .exm-progresso { margin-top: 16px; display: none; }
+
+    .exm-progresso-txt { font-size: .9em; color: #475569; margin-bottom: 8px; text-align: center; }
+
+    .exm-barra {
+      height: 10px; border-radius: 999px; background: #e2e8f0; overflow: hidden;
+    }
+
+    .exm-barra-preenchida {
+      height: 100%; width: 0%;
+      background: linear-gradient(90deg, #9381ff, #7b6cce);
+      border-radius: 999px; transition: width .3s ease;
+    }
+
+    .exm-dica-tipos { font-size: .78em; color: #94a3b8; margin-top: 8px; text-align: center; }
+  </style>
+</head>
+
+<body>
+  <div class="page-wrapper">
+    <header class="header">
+      <div class="logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round">
+            <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+          </svg>
+        </div>
+        <div class="logo-text">
+          <span class="logo-title">Equipe Lilás - CS Fazenda</span>
+          <span class="logo-subtitle">Centro de Fazenda do Rio Tavares</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="container">
+      <div class="card">
+        <div class="card-header">
+          <div class="badge">
+            <span class="badge-dot"></span>
+            Exames
+          </div>
+          <h1>Enviar exames</h1>
+          <p class="description">
+            Envie fotos ou PDF dos seus exames laboratoriais e de imagem.
+            A equipe recebe na hora e avalia; se necessário, entraremos em contato.
+          </p>
+        </div>
+
+        <div class="form-container" style="display:block">
+          <form id="form-exames" novalidate>
+            <div id="form-fields" class="form-fields">
+              <div class="form-group">
+                <label for="nome">
+                  <span class="label-icon">👤</span>
+                  Nome completo
+                </label>
+                <input type="text" id="nome" name="nome" placeholder="Nome de quem fez os exames" required
+                  aria-required="true" aria-describedby="nome-error" autocomplete="name">
+                <span id="nome-error" class="error-message" role="alert"></span>
+              </div>
+
+              <div class="form-group">
+                <label for="dataNascimento">
+                  <span class="label-icon">🎂</span>
+                  Data de nascimento
+                </label>
+                <input type="text" id="dataNascimento" name="dataNascimento" placeholder="DD/MM/AAAA" maxlength="10"
+                  required aria-required="true" aria-describedby="dataNascimento-error" autocomplete="bday">
+                <span id="dataNascimento-error" class="error-message" role="alert"></span>
+              </div>
+
+              <div class="form-group">
+                <label for="telefone">
+                  <span class="label-icon">📱</span>
+                  Telefone (WhatsApp)
+                </label>
+                <input type="tel" id="telefone" name="telefone" placeholder="(00) 00000-0000" required
+                  aria-required="true" aria-describedby="telefone-error" autocomplete="tel">
+                <span id="telefone-error" class="error-message" role="alert"></span>
+              </div>
+
+              <div class="form-group">
+                <label for="arquivos">
+                  <span class="label-icon">🧪</span>
+                  Arquivos dos exames
+                </label>
+                <div id="area-drop" class="exm-drop" role="button" tabindex="0"
+                  aria-label="Escolher arquivos de exames">
+                  <div class="exm-drop-icone">📎</div>
+                  <strong>Toque para escolher os arquivos</strong>
+                  <span>ou arraste e solte aqui (foto ou PDF)</span>
+                </div>
+                <input type="file" id="arquivos" multiple accept="image/*,.pdf,.heic,.heif" style="display:none">
+                <div id="lista-arquivos" class="exm-lista"></div>
+                <p class="exm-dica-tipos">Aceita JPG, PNG, HEIC e PDF · até 15 MB por arquivo · até 10 arquivos</p>
+                <span id="arquivos-error" class="error-message" role="alert"></span>
+              </div>
+
+              <button type="submit" id="submit-btn" class="btn btn-primary btn-large">
+                <span class="btn-text">Enviar exames</span>
+              </button>
+            </div>
+          </form>
+
+          <div id="progresso" class="exm-progresso">
+            <p class="exm-progresso-txt" id="progresso-txt">Preparando envio…</p>
+            <div class="exm-barra">
+              <div class="exm-barra-preenchida" id="barra"></div>
+            </div>
+          </div>
+
+          <div id="mensagem" class="msg" style="display:none;" role="status" aria-live="polite"></div>
+
+          <a class="btn btn-secondary" href="./" style="margin-top:16px">
+            <span class="btn-text">← Voltar ao início</span>
+          </a>
+        </div>
+      </div>
+
+      <div class="info-section info-section-single">
+        <div class="info-card info-card-full">
+          <div class="info-icon">🔒</div>
+          <div class="info-content">
+            <strong>Seus exames ficam seguros</strong>
+            <p>Os arquivos vão direto para o arquivo interno da equipe de saúde e são vistos apenas por ela.</p>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <p>© 2025 Equipe Lilás - CS Fazenda. Todos os direitos reservados.</p>
+    </footer>
+  </div>
+
+  <script src="enviar-exames.js"></script>
+</body>
+
+</html>
