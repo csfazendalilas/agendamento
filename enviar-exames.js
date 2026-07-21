@@ -1,0 +1,358 @@
+// ============================================
+// ENVIO DE EXAMES (laboratoriais e de imagem)
+// Fluxo: iniciarEnvioExames (cria a pasta no Drive) → anexarExame (um por
+// arquivo, com barra de progresso) → finalizarEnvioExames (registra a linha
+// na aba "Exames não vistos" da planilha da equipe).
+// ============================================
+
+const API_URL = 'https://script.google.com/macros/s/AKfycbzSnLgusejiDF9oCtL-xjY54TybLn91HyX3NTofToGRs9rqREqg136D2czCsSLhNrti/exec';
+
+const MAX_ARQUIVOS = 10;
+const MAX_MB_POR_ARQUIVO = 15;
+
+// Extensão → tipo (o celular às vezes não informa o tipo do arquivo)
+const TIPOS_POR_EXTENSAO = {
+  jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp',
+  heic: 'image/heic', heif: 'image/heif', pdf: 'application/pdf'
+};
+
+let arquivosSelecionados = [];
+
+// ============================================
+// UTILITÁRIOS
+// ============================================
+
+const $ = (id) => document.getElementById(id);
+
+function tipoDoArquivo(arquivo) {
+  const tipo = (arquivo.type || '').toLowerCase();
+  if (tipo) return tipo;
+  const ext = (arquivo.name.split('.').pop() || '').toLowerCase();
+  return TIPOS_POR_EXTENSAO[ext] || '';
+}
+
+function tipoAceito(arquivo) {
+  const tipo = tipoDoArquivo(arquivo);
+  return Object.values(TIPOS_POR_EXTENSAO).indexOf(tipo) !== -1;
+}
+
+function tamanhoLegivel(bytes) {
+  if (bytes < 1024 * 1024) return Math.max(1, Math.round(bytes / 1024)) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function lerComoBase64(arquivo) {
+  return new Promise((resolver, rejeitar) => {
+    const leitor = new FileReader();
+    leitor.onload = () => {
+      const resultado = leitor.result || '';
+      resolver(resultado.toString().split(',')[1] || '');
+    };
+    leitor.onerror = () => rejeitar(new Error('Não foi possível ler o arquivo "' + arquivo.name + '".'));
+    leitor.readAsDataURL(arquivo);
+  });
+}
+
+async function chamarApi(corpo) {
+  const resp = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(corpo)
+  });
+  if (!resp.ok) throw new Error('Falha de conexão (HTTP ' + resp.status + '). Verifique a internet e tente de novo.');
+  return resp.json();
+}
+
+// ============================================
+// VALIDAÇÕES (mesmas regras do site)
+// ============================================
+
+function validarTelefone(telefone) {
+  const apenasNumeros = telefone.replace(/\D/g, '');
+  return apenasNumeros.length >= 10 && apenasNumeros.length <= 11;
+}
+
+function validarDataNascimento(data) {
+  const regex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+  if (!regex.test(data)) return { valido: false, mensagem: 'Use o formato DD/MM/AAAA' };
+  const partes = data.split('/');
+  const dia = parseInt(partes[0], 10);
+  const mes = parseInt(partes[1], 10);
+  const ano = parseInt(partes[2], 10);
+  if (dia < 1 || dia > 31 || mes < 1 || mes > 12 || ano < 1900 || ano > new Date().getFullYear()) {
+    return { valido: false, mensagem: 'Data inválida. Verifique dia, mês e ano.' };
+  }
+  return { valido: true };
+}
+
+function mostrarErroCampo(campoId, mensagem) {
+  const campo = $(campoId);
+  const errorSpan = $(campoId + '-error');
+  if (campo) { campo.setAttribute('aria-invalid', 'true'); campo.classList.add('error'); }
+  if (errorSpan) errorSpan.textContent = mensagem;
+}
+
+function limparErroCampo(campoId) {
+  const campo = $(campoId);
+  const errorSpan = $(campoId + '-error');
+  if (campo) { campo.removeAttribute('aria-invalid'); campo.classList.remove('error'); }
+  if (errorSpan) errorSpan.textContent = '';
+}
+
+function validarFormulario() {
+  ['nome', 'dataNascimento', 'telefone', 'arquivos'].forEach(limparErroCampo);
+
+  const nome = $('nome').value.trim();
+  const dataNascimento = $('dataNascimento').value.trim();
+  const telefone = $('telefone').value.trim();
+  let valido = true;
+
+  if (!nome || nome.length < 3) { mostrarErroCampo('nome', 'Informe o nome completo'); valido = false; }
+
+  if (!dataNascimento) {
+    mostrarErroCampo('dataNascimento', 'Informe a data de nascimento'); valido = false;
+  } else {
+    const v = validarDataNascimento(dataNascimento);
+    if (!v.valido) { mostrarErroCampo('dataNascimento', v.mensagem); valido = false; }
+  }
+
+  if (!telefone) { mostrarErroCampo('telefone', 'Informe seu telefone'); valido = false; }
+  else if (!validarTelefone(telefone)) { mostrarErroCampo('telefone', 'Telefone inválido'); valido = false; }
+
+  if (arquivosSelecionados.length === 0) {
+    mostrarErroCampo('arquivos', 'Escolha ao menos um arquivo de exame');
+    valido = false;
+  }
+
+  return valido;
+}
+
+// ============================================
+// MÁSCARAS
+// ============================================
+
+function aplicarMascaraTelefone(input) {
+  let value = input.value.replace(/\D/g, '');
+  if (value.length <= 2) input.value = value ? '(' + value : '';
+  else if (value.length <= 7) input.value = '(' + value.substring(0, 2) + ') ' + value.substring(2);
+  else if (value.length <= 10) input.value = '(' + value.substring(0, 2) + ') ' + value.substring(2, 6) + '-' + value.substring(6);
+  else input.value = '(' + value.substring(0, 2) + ') ' + value.substring(2, 7) + '-' + value.substring(7, 11);
+}
+
+function aplicarMascaraData(input) {
+  let value = input.value.replace(/\D/g, '');
+  if (value.length > 2) value = value.substring(0, 2) + '/' + value.substring(2);
+  if (value.length > 5) value = value.substring(0, 5) + '/' + value.substring(5, 9);
+  input.value = value;
+}
+
+// ============================================
+// SELEÇÃO DE ARQUIVOS
+// ============================================
+
+function adicionarArquivos(lista) {
+  limparErroCampo('arquivos');
+  const problemas = [];
+
+  Array.prototype.forEach.call(lista, (arquivo) => {
+    if (arquivosSelecionados.length >= MAX_ARQUIVOS) {
+      problemas.push('Limite de ' + MAX_ARQUIVOS + ' arquivos por envio.');
+      return;
+    }
+    if (!tipoAceito(arquivo)) {
+      problemas.push('"' + arquivo.name + '" não é foto nem PDF.');
+      return;
+    }
+    if (arquivo.size > MAX_MB_POR_ARQUIVO * 1024 * 1024) {
+      problemas.push('"' + arquivo.name + '" passa de ' + MAX_MB_POR_ARQUIVO + ' MB.');
+      return;
+    }
+    const repetido = arquivosSelecionados.some(a => a.name === arquivo.name && a.size === arquivo.size);
+    if (!repetido) arquivosSelecionados.push(arquivo);
+  });
+
+  if (problemas.length) mostrarErroCampo('arquivos', problemas.join(' '));
+  renderizarListaArquivos();
+}
+
+function renderizarListaArquivos() {
+  const listaEl = $('lista-arquivos');
+  listaEl.innerHTML = '';
+  arquivosSelecionados.forEach((arquivo, indice) => {
+    const item = document.createElement('div');
+    item.className = 'exm-arquivo';
+
+    const emoji = tipoDoArquivo(arquivo) === 'application/pdf' ? '📄' : '🖼️';
+    const nome = document.createElement('span');
+    nome.className = 'exm-nome';
+    nome.textContent = emoji + ' ' + arquivo.name;
+
+    const tamanho = document.createElement('span');
+    tamanho.className = 'exm-tamanho';
+    tamanho.textContent = tamanhoLegivel(arquivo.size);
+
+    const remover = document.createElement('button');
+    remover.type = 'button';
+    remover.className = 'exm-remover';
+    remover.textContent = '✕';
+    remover.setAttribute('aria-label', 'Remover ' + arquivo.name);
+    remover.addEventListener('click', () => {
+      arquivosSelecionados.splice(indice, 1);
+      renderizarListaArquivos();
+    });
+
+    item.appendChild(nome);
+    item.appendChild(tamanho);
+    item.appendChild(remover);
+    listaEl.appendChild(item);
+  });
+}
+
+// ============================================
+// ENVIO
+// ============================================
+
+function definirProgresso(texto, porcentagem) {
+  $('progresso').style.display = 'block';
+  $('progresso-txt').textContent = texto;
+  $('barra').style.width = Math.min(100, Math.round(porcentagem)) + '%';
+}
+
+async function enviarExames(evento) {
+  if (evento) evento.preventDefault();
+  if (!validarFormulario()) return;
+
+  const nome = $('nome').value.trim();
+  const dataNascimento = $('dataNascimento').value.trim();
+  const telefone = $('telefone').value.trim();
+  const msgDiv = $('mensagem');
+  const botao = $('submit-btn');
+
+  botao.disabled = true;
+  msgDiv.style.display = 'none';
+  msgDiv.className = 'msg';
+
+  const total = arquivosSelecionados.length;
+
+  try {
+    // 1) Cria a pasta do envio
+    definirProgresso('Preparando envio…', 4);
+    const inicio = await chamarApi({ action: 'iniciarEnvioExames', nome, dataNascimento, telefone });
+
+    if (!inicio || inicio.sucesso !== true || !inicio.envioId) {
+      const mensagemServidor = inicio && inicio.mensagem ? inicio.mensagem : '';
+      // Backend antigo (sem o envio de exames ativado) cai aqui
+      throw new Error(mensagemServidor && !/hor[aá]rio/i.test(mensagemServidor)
+        ? mensagemServidor
+        : 'O envio de exames ainda está sendo ativado pela equipe. Tente novamente mais tarde.');
+    }
+
+    // 2) Sobe os arquivos um a um
+    for (let i = 0; i < total; i++) {
+      const arquivo = arquivosSelecionados[i];
+      definirProgresso('Enviando arquivo ' + (i + 1) + ' de ' + total + ' — ' + arquivo.name,
+        5 + (i / total) * 85);
+
+      const conteudo = await lerComoBase64(arquivo);
+      const resposta = await chamarApi({
+        action: 'anexarExame',
+        envioId: inicio.envioId,
+        nomeArquivo: arquivo.name,
+        tipo: tipoDoArquivo(arquivo),
+        conteudo: conteudo
+      });
+      if (!resposta || resposta.sucesso !== true) {
+        throw new Error((resposta && resposta.mensagem) || 'Falha ao enviar "' + arquivo.name + '". Tente de novo.');
+      }
+    }
+
+    // 3) Registra na planilha da equipe
+    definirProgresso('Registrando envio…', 95);
+    const fim = await chamarApi({ action: 'finalizarEnvioExames', envioId: inicio.envioId, nome, dataNascimento, telefone });
+    if (!fim || fim.sucesso !== true) {
+      throw new Error((fim && fim.mensagem) || 'Não foi possível registrar o envio. Tente de novo.');
+    }
+
+    definirProgresso('Concluído!', 100);
+    $('form-fields').style.display = 'none';
+    setTimeout(() => { $('progresso').style.display = 'none'; }, 600);
+
+    msgDiv.className = 'msg sucesso';
+    msgDiv.style.display = 'block';
+    msgDiv.innerHTML = '';
+    const cabecalho = document.createElement('div');
+    cabecalho.className = 'resumo-header';
+    const icone = document.createElement('div');
+    icone.className = 'icon-ok';
+    icone.textContent = '✓';
+    const textos = document.createElement('div');
+    const titulo = document.createElement('div');
+    titulo.className = 'resumo-titulo';
+    titulo.textContent = 'Exames enviados!';
+    const subtitulo = document.createElement('div');
+    subtitulo.className = 'resumo-subtitulo';
+    subtitulo.textContent = fim.arquivos + ' arquivo(s) recebido(s) pela equipe. Vamos avaliar e, se necessário, entraremos em contato pelo telefone informado.';
+    textos.appendChild(titulo);
+    textos.appendChild(subtitulo);
+    cabecalho.appendChild(icone);
+    cabecalho.appendChild(textos);
+    msgDiv.appendChild(cabecalho);
+    msgDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (erro) {
+    console.error(erro);
+    $('progresso').style.display = 'none';
+    botao.disabled = false;
+
+    msgDiv.className = 'msg erro';
+    msgDiv.style.display = 'block';
+    msgDiv.innerHTML = '';
+    const tituloErro = document.createElement('p');
+    tituloErro.style.fontWeight = '600';
+    tituloErro.textContent = 'Não foi possível enviar os exames';
+    const detalheErro = document.createElement('p');
+    detalheErro.style.fontSize = '14px';
+    detalheErro.textContent = erro.message || 'Verifique sua conexão e tente novamente.';
+    msgDiv.appendChild(tituloErro);
+    msgDiv.appendChild(detalheErro);
+    msgDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+// ============================================
+// INICIALIZAÇÃO
+// ============================================
+
+document.addEventListener('DOMContentLoaded', () => {
+  const area = $('area-drop');
+  const inputArquivos = $('arquivos');
+
+  area.addEventListener('click', () => inputArquivos.click());
+  area.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inputArquivos.click(); }
+  });
+
+  inputArquivos.addEventListener('change', () => {
+    adicionarArquivos(inputArquivos.files);
+    inputArquivos.value = ''; // permite escolher o mesmo arquivo de novo
+  });
+
+  ['dragover', 'dragenter'].forEach(nome => area.addEventListener(nome, (e) => {
+    e.preventDefault();
+    area.classList.add('arrastando');
+  }));
+  ['dragleave', 'drop'].forEach(nome => area.addEventListener(nome, (e) => {
+    e.preventDefault();
+    area.classList.remove('arrastando');
+  }));
+  area.addEventListener('drop', (e) => {
+    if (e.dataTransfer && e.dataTransfer.files) adicionarArquivos(e.dataTransfer.files);
+  });
+
+  $('dataNascimento').addEventListener('input', (e) => aplicarMascaraData(e.target));
+  $('telefone').addEventListener('input', (e) => aplicarMascaraTelefone(e.target));
+  ['nome', 'dataNascimento', 'telefone'].forEach(id => {
+    $(id).addEventListener('input', () => limparErroCampo(id));
+  });
+
+  $('form-exames').addEventListener('submit', enviarExames);
+});
