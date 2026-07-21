@@ -1,0 +1,16 @@
+# Backend do Google Apps Script — NÃO deve ficar no repositório público.
+# O código real vive só no Apps Script (script.google.com). Estes arquivos
+# expõem IDs de planilhas e a lógica interna sem nenhum benefício para o site.
+.clasp.json
+.clasprc.json
+backend/
+meu-backend-gas/
+Code.js
+code.js
+TriggerPosto.js
+TriggerEnfermagem.js
+duplicidade.js
+appsscript.json
+
+# Sistema
+.DS_Store
