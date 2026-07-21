@@ -53,34 +53,20 @@ function lerComoBase64(arquivo) {
   });
 }
 
-// Faz o POST via XMLHttpRequest (em vez de fetch) para conseguir a barra de
-// progresso REAL do upload: o fetch não informa quanto do arquivo já subiu.
-// O callback aoProgredirUpload (opcional) recebe uma fração de 0 a 1 enquanto
-// o corpo da requisição está sendo enviado.
-function chamarApi(corpo, aoProgredirUpload) {
-  return new Promise((resolver, rejeitar) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', API_URL, true);
-    xhr.setRequestHeader('Content-Type', 'text/plain;charset=utf-8');
-    if (aoProgredirUpload && xhr.upload) {
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable) aoProgredirUpload(e.loaded / e.total);
-      });
-    }
-    xhr.onload = () => {
-      if (xhr.status < 200 || xhr.status >= 300) {
-        rejeitar(new Error('Falha de conexão (HTTP ' + xhr.status + '). Verifique a internet e tente de novo.'));
-        return;
-      }
-      try {
-        resolver(JSON.parse(xhr.responseText));
-      } catch (e) {
-        rejeitar(new Error('Resposta inesperada do servidor. Tente de novo.'));
-      }
-    };
-    xhr.onerror = () => rejeitar(new Error('Falha de conexão. Verifique a internet e tente de novo.'));
-    xhr.send(JSON.stringify(corpo));
+// POST para o Apps Script. Usamos fetch SIMPLES de propósito: se ligarmos um
+// medidor de progresso de upload (xhr.upload) ou cabeçalhos extras, a
+// requisição deixa de ser "simples", o navegador dispara um preflight CORS
+// (OPTIONS) e o Web App do Apps Script não responde a preflight — o envio cai
+// com "falha de conexão". Por isso a barra usa progresso ESTIMADO (o trickle),
+// e não o byte-a-byte do upload.
+async function chamarApi(corpo) {
+  const resp = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(corpo)
   });
+  if (!resp.ok) throw new Error('Falha de conexão (HTTP ' + resp.status + '). Verifique a internet e tente de novo.');
+  return resp.json();
 }
 
 // ============================================
@@ -311,8 +297,10 @@ async function enviarExames(evento) {
       const segFim = INICIO_ARQUIVOS + ((i + 1) / total) * FAIXA_ARQUIVOS;
       const seg = segFim - segInicio;
 
-      pararTrickle();
       definirProgresso('Enviando arquivo ' + (i + 1) + ' de ' + total + ' — ' + arquivo.name, segInicio);
+      // a barra avança sozinha (estimada) enquanto o arquivo sobe, easing até
+      // perto do fim do trecho deste arquivo; ao confirmar, damos o "snap".
+      iniciarTrickle(segInicio + seg * 0.9);
 
       const conteudo = await lerComoBase64(arquivo);
       const resposta = await chamarApi({
@@ -321,11 +309,6 @@ async function enviarExames(evento) {
         nomeArquivo: arquivo.name,
         tipo: tipoDoArquivo(arquivo),
         conteudo: conteudo
-      }, (fracao) => {
-        // enquanto o arquivo sobe, preenche até 88% do trecho deste arquivo...
-        definirProgresso(null, segInicio + fracao * seg * 0.88);
-        // ...e quando termina de subir, o trickle cobre a espera do servidor
-        if (fracao >= 1 && !trickleTimer) iniciarTrickle(segInicio + seg * 0.98);
       });
       pararTrickle();
       if (!resposta || resposta.sucesso !== true) {
