@@ -22,6 +22,14 @@ const PALAVRA_RESERVADO = 'reservado';
 // Aba onde fica a configuração da tela inicial (editada pelo painel /admin.html)
 const ABA_CONFIG = 'Config';
 
+// ====== ENVIO DE EXAMES (página enviar-exames.html) ======
+// Planilha das receitas, onde a equipe acompanha os exames enviados
+const SHEET_EXAMES_ID = '1YkG_3EMUEcwTgbeqrpJ-Nu5AdsRKWtGspO-R9PYIytA';
+const ABA_EXAMES_NOVOS = 'Exames não vistos';
+const ABA_EXAMES_VISTOS = 'Exames vistos';
+const EXAMES_TIPOS_PERMITIDOS = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf'];
+const EXAMES_MAX_MB_POR_ARQUIVO = 15;
+
 // Estruturas de colunas na agenda do posto, por origem:
 // F = médico     (hora na E, "reservado" na F; escreve marcador na D e nome/DN/motivo em F-H)
 // O = enfermeira (hora na N, "reservado" na O; escreve marcador na M e nome/DN/motivo em O-Q)
@@ -65,6 +73,12 @@ function doPost(e) {
       res = verificarSenhaAdmin(data);
     } else if (data && data.action === 'saveConfig') {
       res = salvarConfig(data);
+    } else if (data && data.action === 'iniciarEnvioExames') {
+      res = iniciarEnvioExames(data);
+    } else if (data && data.action === 'anexarExame') {
+      res = anexarExame(data);
+    } else if (data && data.action === 'finalizarEnvioExames') {
+      res = finalizarEnvioExames(data);
     } else {
       res = bookSlot(data);
     }
@@ -712,7 +726,7 @@ function salvarConfig(data) {
  */
 function definirTokenGithub() {
   const NOVO_TOKEN = 'COLOQUE-O-TOKEN-AQUI';
-  if (NOVO_TOKEN === 'COLOQUE-O-TOKEN-AQUI') {
+  if (!NOVO_TOKEN || NOVO_TOKEN === 'COLOQUE-O-TOKEN-AQUI') {
     throw new Error('Edite a função e troque COLOQUE-O-TOKEN-AQUI pelo token do GitHub antes de executar.');
   }
   PropertiesService.getScriptProperties().setProperty('GITHUB_TOKEN', NOVO_TOKEN);
@@ -840,5 +854,211 @@ function restaurarColunaDN() {
     return resumo;
   } finally {
     try { lock.releaseLock(); } catch (ignorado) {}
+  }
+}
+
+// ====== ENVIO DE EXAMES ======
+
+/**
+ * ATIVAR O ENVIO DE EXAMES (EXECUTAR UMA VEZ):
+ * Executar > configurarExames. Na primeira execução o Google vai pedir uma
+ * NOVA AUTORIZAÇÃO (acesso ao Drive) — aceite. A função:
+ *  - cria a pasta-mãe "Exames do site" no seu Drive (pode movê-la depois
+ *    para onde quiser; o vínculo continua funcionando);
+ *  - instala o gatilho do checkbox: marcar "Visto?" na aba "Exames não
+ *    vistos" move a linha sozinha para "Exames vistos".
+ */
+function configurarExames() {
+  const pasta = pastaExames();
+
+  ScriptApp.getProjectTriggers().forEach(trigger => {
+    if (trigger.getHandlerFunction() === 'aoEditarPlanilhaExames') {
+      ScriptApp.deleteTrigger(trigger);
+    }
+  });
+  ScriptApp.newTrigger('aoEditarPlanilhaExames')
+    .forSpreadsheet(SHEET_EXAMES_ID)
+    .onEdit()
+    .create();
+
+  const mensagem = '✅ Envio de exames ativado!\nPasta dos exames: ' + pasta.getUrl();
+  Logger.log(mensagem);
+  return mensagem;
+}
+
+/** Pasta-mãe dos exames no Drive (criada uma vez; o ID fica guardado). */
+function pastaExames() {
+  const props = PropertiesService.getScriptProperties();
+  const idSalvo = props.getProperty('EXAMES_PASTA_ID');
+  if (idSalvo) {
+    try {
+      const pasta = DriveApp.getFolderById(idSalvo);
+      if (!pasta.isTrashed()) return pasta;
+    } catch (ignorado) {}
+  }
+  const nova = DriveApp.createFolder('Exames do site');
+  props.setProperty('EXAMES_PASTA_ID', nova.getId());
+  return nova;
+}
+
+/**
+ * Passo 1 do envio: valida os dados e cria a pasta do paciente
+ * dentro da pasta-mãe. Retorna o id do envio (= id da pasta).
+ */
+function iniciarEnvioExames(data) {
+  const nome = (data.nome || '').toString().trim();
+  const dataNascimento = (data.dataNascimento || '').toString().trim();
+  const telefone = (data.telefone || '').toString().trim();
+
+  if (nome.length < 3) return { sucesso: false, mensagem: 'Informe o nome completo.' };
+  if (!/^\d{2}\/\d{2}\/\d{4}$/.test(dataNascimento)) {
+    return { sucesso: false, mensagem: 'Informe a data de nascimento no formato DD/MM/AAAA.' };
+  }
+  const digitosTelefone = telefone.replace(/\D/g, '');
+  if (digitosTelefone.length < 10 || digitosTelefone.length > 11) {
+    return { sucesso: false, mensagem: 'Informe um telefone válido com DDD.' };
+  }
+
+  const carimbo = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'dd-MM-yyyy HH\'h\'mm');
+  const nomePasta = (nome + ' — ' + dataNascimento + ' — ' + carimbo).replace(/[\\\/\n\r]/g, ' ').slice(0, 120);
+  const pasta = pastaExames().createFolder(nomePasta);
+
+  return { sucesso: true, envioId: pasta.getId() };
+}
+
+/**
+ * Passo 2 (repetido por arquivo): recebe um arquivo em base64 e salva na
+ * pasta do envio. Só aceita imagens e PDF, até o limite de tamanho.
+ */
+function anexarExame(data) {
+  const envioId = (data.envioId || '').toString().trim();
+  const nomeArquivo = (data.nomeArquivo || 'arquivo').toString().replace(/[\\\/\n\r]/g, ' ').slice(0, 100);
+  const tipo = (data.tipo || '').toString().trim().toLowerCase();
+  const conteudo = (data.conteudo || '').toString();
+
+  if (!envioId || !conteudo) return { sucesso: false, mensagem: 'Envio incompleto. Tente novamente.' };
+
+  if (EXAMES_TIPOS_PERMITIDOS.indexOf(tipo) === -1) {
+    return { sucesso: false, mensagem: 'Tipo de arquivo não aceito ("' + nomeArquivo + '"). Envie fotos (JPG/PNG/HEIC) ou PDF.' };
+  }
+  // base64 ocupa ~4/3 do tamanho real
+  if (conteudo.length > EXAMES_MAX_MB_POR_ARQUIVO * 1024 * 1024 * 4 / 3 + 1000) {
+    return { sucesso: false, mensagem: 'O arquivo "' + nomeArquivo + '" passa de ' + EXAMES_MAX_MB_POR_ARQUIVO + ' MB.' };
+  }
+
+  let pasta;
+  try {
+    pasta = DriveApp.getFolderById(envioId);
+  } catch (erro) {
+    return { sucesso: false, mensagem: 'Envio não encontrado. Recomece o envio.' };
+  }
+
+  // Segurança: a pasta do envio precisa estar dentro da pasta-mãe de exames
+  const pastaMaeId = PropertiesService.getScriptProperties().getProperty('EXAMES_PASTA_ID');
+  let dentroDaPastaMae = false;
+  const pais = pasta.getParents();
+  while (pais.hasNext()) {
+    if (pais.next().getId() === pastaMaeId) { dentroDaPastaMae = true; break; }
+  }
+  if (!dentroDaPastaMae) {
+    return { sucesso: false, mensagem: 'Envio inválido. Recomece o envio.' };
+  }
+
+  const blob = Utilities.newBlob(Utilities.base64Decode(conteudo), tipo, nomeArquivo);
+  pasta.createFile(blob);
+  return { sucesso: true };
+}
+
+/**
+ * Passo 3: registra o envio na aba "Exames não vistos" (linha nova no topo,
+ * com checkbox "Visto?" na coluna A). Só roda depois de todos os arquivos.
+ */
+function finalizarEnvioExames(data) {
+  const envioId = (data.envioId || '').toString().trim();
+  const nome = (data.nome || '').toString().trim();
+  const dataNascimento = (data.dataNascimento || '').toString().trim();
+  const telefone = (data.telefone || '').toString().trim();
+
+  if (!envioId || !nome) return { sucesso: false, mensagem: 'Envio incompleto. Tente novamente.' };
+
+  let pasta;
+  try {
+    pasta = DriveApp.getFolderById(envioId);
+  } catch (erro) {
+    return { sucesso: false, mensagem: 'Envio não encontrado. Recomece o envio.' };
+  }
+
+  let qtdArquivos = 0;
+  const arquivos = pasta.getFiles();
+  while (arquivos.hasNext()) { arquivos.next(); qtdArquivos++; }
+  if (qtdArquivos === 0) {
+    return { sucesso: false, mensagem: 'Nenhum arquivo foi recebido. Tente enviar novamente.' };
+  }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30 * 1000);
+  try {
+    const ss = SpreadsheetApp.openById(SHEET_EXAMES_ID);
+    const sheet = ss.getSheetByName(ABA_EXAMES_NOVOS);
+    if (!sheet) {
+      return { sucesso: false, mensagem: 'A aba "' + ABA_EXAMES_NOVOS + '" não foi encontrada na planilha.' };
+    }
+    garantirCabecalhoExames(sheet, 'Visto?');
+
+    sheet.insertRowBefore(2);
+    sheet.getRange(2, 2, 1, 6).setValues([[new Date(), nome, dataNascimento, telefone, pasta.getUrl(), qtdArquivos]]);
+    sheet.getRange(2, 1).insertCheckboxes();
+
+    SpreadsheetApp.flush();
+    return { sucesso: true, arquivos: qtdArquivos };
+  } finally {
+    try { lock.releaseLock(); } catch (ignorado) {}
+  }
+}
+
+/** Escreve o cabeçalho da aba de exames se a primeira linha estiver vazia. */
+function garantirCabecalhoExames(sheet, tituloColunaA) {
+  if ((sheet.getRange(1, 1).getDisplayValue() || '').toString().trim() !== '') return;
+  sheet.getRange(1, 1, 1, 7).setValues([[
+    tituloColunaA, 'Enviado em', 'Nome', 'Data de nascimento', 'Telefone', 'Pasta no Drive', 'Arquivos'
+  ]]);
+  sheet.setFrozenRows(1);
+}
+
+/**
+ * Gatilho (instalado por configurarExames): marcar o checkbox "Visto?" na
+ * aba "Exames não vistos" move a linha para "Exames vistos", registrando
+ * a data em que foi visto.
+ */
+function aoEditarPlanilhaExames(e) {
+  try {
+    if (!e || !e.range) return;
+    const sheet = e.range.getSheet();
+    if (sheet.getName() !== ABA_EXAMES_NOVOS) return;
+    if (e.range.getColumn() !== 1 || e.range.getNumColumns() !== 1 || e.range.getNumRows() !== 1) return;
+    const linha = e.range.getRow();
+    if (linha < 2) return;
+    if (e.range.getValue() !== true) return;
+
+    const lock = LockService.getScriptLock();
+    lock.waitLock(10 * 1000);
+    try {
+      const destino = sheet.getParent().getSheetByName(ABA_EXAMES_VISTOS);
+      if (!destino) {
+        Logger.log('❌ Aba "' + ABA_EXAMES_VISTOS + '" não encontrada.');
+        return;
+      }
+      garantirCabecalhoExames(destino, 'Visto em');
+
+      const dadosLinha = sheet.getRange(linha, 2, 1, 6).getValues()[0];
+      destino.insertRowBefore(2);
+      destino.getRange(2, 1, 1, 7).setValues([[new Date()].concat(dadosLinha)]);
+      sheet.deleteRow(linha);
+      SpreadsheetApp.flush();
+    } finally {
+      try { lock.releaseLock(); } catch (ignorado) {}
+    }
+  } catch (erro) {
+    Logger.log('❌ Erro ao mover exame para vistos: ' + erro.message);
   }
 }
